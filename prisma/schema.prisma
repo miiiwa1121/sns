@@ -1,0 +1,168 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 1. チャンネル / ブランド アカウント (マルチアカウント基盤)
+model Account {
+  id                String   @id @default(cuid())
+  name              String   // アカウント表示名 (例: 「AI速報スタジオ」)
+  slug              String   @unique // URL用識別子 (例: "ai-news")
+  category          String   // メインカテゴリ (例: "AI・IT")
+  concept           String   // チャンネルコンセプト
+  targetAudience    String   // 想定ペルソナ・ターゲット層
+  toneOfVoice       String   // トーン＆マナー (例: 「スピーディ・毒舌・明快」)
+  systemPromptRules String?  // 台本生成時に強制適用するプロンプト規則
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // リレーション
+  platformConnections PlatformConnection[]
+  projects            Project[]
+  trendResearches     TrendResearch[]
+  agentKnowledges     AgentKnowledge[]
+}
+
+// 2. SNS連携情報 (YouTube, TikTok, Instagram, X)
+model PlatformConnection {
+  id           String   @id @default(cuid())
+  accountId    String
+  platform     String   // "youtube" | "tiktok" | "instagram" | "x"
+  handle       String   // アカウント名・ハンドル (例: "@ai_news_ch")
+  apiConfig    String?  // API設定やトークンのJSON (暗号化または設定値)
+  isConnected  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// 3. トレンドリサーチ履歴
+model TrendResearch {
+  id             String   @id @default(cuid())
+  accountId      String
+  topic          String
+  category       String
+  buzzScore      Int
+  searchVolume   String
+  trendVelocity  String
+  suggestedAngle String
+  createdAt      DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// 4. 動画企画プロジェクト
+model Project {
+  id             String   @id @default(cuid())
+  accountId      String
+  title          String
+  concept        String
+  stage          String   @default("research") // "research" | "production" | "review" | "published" | "analyzed"
+  targetAudience String?
+  estimatedViews String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account        Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  longFormVideo  LongFormVideo?
+  shortClips     ShortClip[]
+  publishLogs    PublishLog[]
+  analytics      AnalyticsMetric[]
+}
+
+// 5. 長尺動画マスター構成・台本
+model LongFormVideo {
+  id           String   @id @default(cuid())
+  projectId    String   @unique
+  title        String
+  description  String
+  durationSec  Int
+  thumbnailUrl String?
+  status       String   @default("drafting") // "drafting" | "rendered" | "approved" | "published"
+  scriptJson   String   // チャプター分割・ナレーション配列のJSON
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// 6. 切り抜きショート動画
+model ShortClip {
+  id                     String   @id @default(cuid())
+  projectId              String
+  title                  String
+  startTimeSec           Int
+  endTimeSec             Int
+  durationSec            Int
+  hookSentence           String   // 冒頭1〜2秒のバズるフック
+  captionStyle           String   @default("dynamic-bounce")
+  aspectRatio            String   @default("9:16")
+  estimatedRetentionRate Int      @default(80)
+  bgmTrack               String?
+  readyToPublish         Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  publishLogs PublishLog[]
+}
+
+// 7. プラットフォーム別配信ログ & スケジュール
+model PublishLog {
+  id           String    @id @default(cuid())
+  projectId    String
+  shortClipId  String?
+  platform     String    // "youtube" | "tiktok" | "instagram" | "x"
+  title        String?
+  caption      String?
+  tagsJson     String?   // ハッシュタグ配列のJSON
+  status       String    @default("draft") // "draft" | "scheduled" | "published"
+  postUrl      String?   // 投稿後の実URL
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shortClip ShortClip? @relation(fields: [shortClipId], references: [id], onDelete: SetNull)
+}
+
+// 8. アナリティクス実績
+model AnalyticsMetric {
+  id             String   @id @default(cuid())
+  projectId      String
+  platform       String   // "youtube" | "tiktok" | "instagram" | "x"
+  views          Int      @default(0)
+  retentionRate  Float    @default(0.0) // %
+  likes          Int      @default(0)
+  shares         Int      @default(0)
+  comments       Int      @default(0)
+  engagementRate Float    @default(0.0) // %
+  topComment     String?
+  collectedAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// 9. CriticAIによるアカウント別の学習知見 (PDCAメモリ)
+model AgentKnowledge {
+  id              String   @id @default(cuid())
+  accountId       String
+  category        String   // "hook" | "tempo" | "topic" | "cta"
+  ruleText        String   // 学習知見ルール (例: 「冒頭に疑問文を置くとTikTokの維持率+18%」)
+  confidenceScore Float    @default(0.85)
+  appliedCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
