@@ -25,7 +25,8 @@ graph TD
 
 | コンポーネント | ファイルパス | 責務 |
 | :--- | :--- | :--- |
-| **CriticAgent** | `src/lib/agents/criticAgent.ts` | 視聴維持率・各SNSエンゲージメントから成功/失敗要因を多角診断し、定量的改善ルールを抽出 |
+| **diagnosePerformance** | `src/lib/agents/performanceDiagnosis.ts` | 実測値から計算できる事実だけで診断文と知見を作る純粋関数（画面側の表示にも使う） |
+| **CriticAgent** | `src/lib/agents/criticAgent.ts` | `diagnosePerformance` の呼び出しと、知見の `AgentKnowledge` への保存 |
 | **Analytics API** | `src/app/api/analytics/route.ts` | アナリティクス指標のDB永続化および、CriticAIが抽出したナレッジの `AgentKnowledge` 保存処理 |
 | **AnalyticsView** | `src/components/AnalyticsView.tsx` | 指標カード、プラットフォーム別比較、要因分析レポート、ナレッジベース一覧の統合表示 |
 | **AgentKnowledge DB** | `prisma/schema.prisma` (SQLite) | アカウントごとに完全分離された学習ルール永続化テーブル |
@@ -34,20 +35,41 @@ graph TD
 
 ## 3. 分析・知見抽出ロジック (`CriticAgent`)
 
-### 3.1 分析指標入力
-- **合算総再生数**: YouTube Shorts, TikTok, Instagram Reels, X
-- **平均視聴維持率**: 冒頭離脱率、中盤維持率、エンディング遷移
-- **エンゲージメント率**: 高評価率、保存/シェア率、コメント感情比率
+### 3.1 原則
+- **実測値だけを使う。** 実測値が無いプロジェクトは分析しない（API は 400 を返す）。架空の数値で補完しない（Decision 009）。
+- **計算で言える事実だけを書く。** 「フックが効いた」「字幕で維持率が上がった」のような、測っていない因果は書かない。因果の推定は LLM 導入後の課題とする。
 
-### 3.2 評価ロジック
-1. **フック効果の判定**:
-   - 維持率 > 70% かつ TikTok完了率高 → 冒頭1〜2秒の否定形疑問文やバウンス字幕が有効と判定。
-2. **CTA・エンディング離脱の判定**:
-   - 総再生数に対してシェア/保存率が低い場合 → ラストの導線切り替えタイミングに改善余地ありと判定。
-3. **ルール化（Actionable Knowledge）**:
-   - カテゴリ（`HOOK`, `PACING`, `CALL_TO_ACTION`, `VISUAL`）と信頼度（0.0〜1.0）を付与してテキストルール化。
+### 3.2 実測値の登録 (`POST /api/analytics`)
+```json
+{
+  "projectId": "...",
+  "applyToKnowledge": true,
+  "metrics": {
+    "platforms": [
+      { "platform": "youtube", "views": 1500, "likes": 40, "shares": 3, "comments": 5, "engagementRate": 3.2, "retentionRate": 48.5, "topComment": "任意" }
+    ]
+  }
+}
+```
+- `metrics` を渡すと、**送ったプラットフォームの** `AnalyticsMetric` を置き換えて保存する。他のプラットフォームの値は残す（YouTube は API 取得、他は手入力と経路が混在するため）。
+- 配信済み（`PublishLog.status = "published"`）でないプラットフォームの値は受け付けない。
+- `retentionRate` は分からなければ省略する（null として保存。0 を入れない）。平均維持率は、取得できた媒体だけで再生数加重平均する。
+- `metrics` を省略すると、DB に登録済みの実測値で再分析する。
+- 本体は `src/lib/services/analyticsService.ts`。エージェント CLI（`metrics:record` / `analyze`）も同じ処理を使う。
 
----
+### 3.2.1 YouTube の自動取得 (`metrics:collect`)
+`src/lib/analytics/youtubeMetrics.ts` が取得する。
+- 再生数・高評価・コメント: YouTube Data API（`videos.list` の statistics）。
+- 平均視聴率（`averageViewPercentage`）・シェア: YouTube Analytics API。反映まで1〜2日かかり、取れない間は維持率 null・シェア 0 として記録する。
+- エンゲージメント率 = (高評価 + コメント + シェア) / 再生数。
+- 知見の保存先アカウントは、リクエストの値ではなくプロジェクトの所属アカウントから決める。
+
+### 3.3 診断内容
+1. **サマリー**: 総再生数と平均視聴維持率（再生数で加重平均）。
+2. **Strengths / Weaknesses**: エンゲージメント率が最も高い／低いプラットフォーム。
+3. **知見（Actionable Knowledge）**:
+   - 総再生数が 1,000 回未満なら保存しない（偏りが大きいため）。
+   - カテゴリは `topic`、信頼度は再生数に応じて 0.3〜0.8 に留める（単発動画の観測値のため）。
 
 ## 4. データモデル (`AgentKnowledge`)
 
@@ -56,9 +78,9 @@ model AgentKnowledge {
   id              String   @id @default(cuid())
   accountId       String
   account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  category        String   // "HOOK", "PACING", "CALL_TO_ACTION", "VISUAL"
-  ruleText        String   // "冒頭で『従来のやり方の否定＋最新エージェントの提示』をセットで行うと維持率が平均+18%向上。"
-  confidenceScore Float    // 0.94 (94%)
+  category        String   // "hook" | "tempo" | "topic" | "cta"
+  ruleText        String   // 例: "【動画タイトル】実測: TikTok のエンゲージメント率 5.1% が最高、X 1.2% が最低（総再生 4,000回）"
+  confidenceScore Float    // 0.0〜1.0
   appliedCount    Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -86,4 +108,4 @@ ${knowledges.map(k => `- [${k.category}] ${k.ruleText} (信頼度: ${k.confidenc
 `;
 ```
 
-これにより、**運用を続ければ続けるほどチャンネル固有のアルゴリズム最適化が進み、動画の質と視聴維持率が自律的に向上**します。
+運用を続けて実測の知見が溜まるほど、チャンネル固有の傾向を台本生成に反映できる。

@@ -1,357 +1,162 @@
 import React from 'react';
 import {
-  useCurrentFrame,
-  useVideoConfig,
+  AbsoluteFill,
+  Audio,
+  Img,
+  Sequence,
   interpolate,
   spring,
-  Audio,
   staticFile,
+  useCurrentFrame,
+  useVideoConfig,
 } from 'remotion';
 
-export interface ShortVideoProps {
-  title: string;
-  hookSentence: string;
-  creatorHandle: string;
+// ナレーション1行 = 字幕1枚 = 音声1ファイル。尺は音声の長さから CLI が計算して渡す
+export interface ShortVideoLine {
+  caption: string; // 画面に出す字幕
+  audioSrc: string; // public/ からの相対パス
+  durationInFrames: number;
 }
 
-export const ShortVideo: React.FC<ShortVideoProps> = ({
-  title,
-  hookSentence,
-  creatorHandle,
-}) => {
+// Remotion の props は Record<string, unknown> を満たす必要があるため interface ではなく type で定義する
+export type ShortVideoProps = {
+  title: string;
+  brandName: string;
+  handle: string;
+  lines: ShortVideoLine[];
+};
+
+// 末尾に無音の余白を足し、最後の字幕が途切れて見えないようにする
+export const TAIL_FRAMES = 20;
+
+// ブランドカラー（docs/brand/icon.md）
+const COLOR = {
+  bg: '#1E1B2E',
+  yellow: '#FFD43B',
+  orange: '#FFB627',
+  red: '#FF4D2E',
+  white: '#FFFFFF',
+  muted: '#B8B5D1',
+};
+
+const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif';
+
+const Caption: React.FC<{ text: string }> = ({ text }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames, width, height } = useVideoConfig();
-
-  // 1. プログレスバーの進捗 (0% -> 100%)
-  const progressPercent = (frame / durationInFrames) * 100;
-
-  // 2. 背景オーブのパルスアニメーション
-  const pulseScale = interpolate(
-    Math.sin((frame / fps) * Math.PI * 1.5),
-    [-1, 1],
-    [0.85, 1.15]
-  );
-
-  // 3. タイムラインに応じた字幕（テロップ）の切り替え
-  // 全長: 28秒 (840フレーム)
-  let currentCaption = hookSentence;
-  let captionHighlight = '#facc15'; // 蛍光イエロー
-
-  if (frame > fps * 6 && frame <= fps * 13) {
-    currentCaption = '2026年の最新AIエージェントなら、ゴールを1行伝えるだけで勝手に業務を完了！';
-    captionHighlight = '#38bdf8'; // ネオンシアン
-  } else if (frame > fps * 13 && frame <= fps * 21) {
-    currentCaption = 'ブラウザ操作・競合リサーチ・資料作成まで全自動。もうコピペする時代は終了。';
-    captionHighlight = '#a855f7'; // ネオンパープル
-  } else if (frame > fps * 21) {
-    currentCaption = '今すぐ使える神ツールの詳細はプロフィールのリンクをチェック📌';
-    captionHighlight = '#4ade80'; // エメラルドグリーン
-  }
-
-  // テロップのバウンススプリング
-  const captionSpring = spring({
-    frame: frame % (fps * 7),
-    fps,
-    config: { damping: 12, stiffness: 150 },
-  });
+  const { fps } = useVideoConfig();
+  const pop = spring({ frame, fps, config: { damping: 14, stiffness: 180 } });
+  const fontSize = text.length > 40 ? 64 : text.length > 24 ? 76 : 88;
 
   return (
-    <div
-      style={{
-        flex: 1,
-        width,
-        height,
-        backgroundColor: '#07090e',
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        fontFamily: 'sans-serif',
-        overflow: 'hidden',
-      }}
-    >
-      {/* 実際の合成音声 (ナレーション) */}
-      <Audio src={staticFile('audio/short1_narration.mp3')} />
+    <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', padding: '0 70px' }}>
+      <div
+        style={{
+          transform: `scale(${0.9 + pop * 0.1}) translateY(${(1 - pop) * 30}px)`,
+          opacity: pop,
+          background: 'rgba(0, 0, 0, 0.55)',
+          border: `6px solid ${COLOR.yellow}`,
+          borderRadius: 36,
+          padding: '44px 52px',
+          maxWidth: 940,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: FONT,
+            fontSize,
+            fontWeight: 900,
+            lineHeight: 1.4,
+            color: COLOR.white,
+            // 句読点や「？」が行頭に来ないよう禁則を厳格にする。台本側で \n を入れれば任意の位置で改行できる
+            lineBreak: 'strict',
+            whiteSpace: 'pre-line',
+          }}
+        >
+          {text}
+        </span>
+      </div>
+    </AbsoluteFill>
+  );
+};
 
-      {/* --- 背景演出: 動的ネオンオーブ & グリッド --- */}
+export const ShortVideo: React.FC<ShortVideoProps> = ({ title, brandName, handle, lines }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const progress = interpolate(frame, [0, durationInFrames - 1], [0, 100], { extrapolateRight: 'clamp' });
+
+  // 各行の開始フレーム = それより前の行の尺の合計
+  const starts = lines.map((_, i) => lines.slice(0, i).reduce((acc, l) => acc + l.durationInFrames, 0));
+  const sequences = lines.map((line, i) => (
+    <Sequence key={i} from={starts[i]} durationInFrames={line.durationInFrames}>
+      <Audio src={staticFile(line.audioSrc)} />
+      <Caption text={line.caption} />
+    </Sequence>
+  ));
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: COLOR.bg, fontFamily: FONT }}>
+      {/* 背景: ブランドの黄色を斜めの帯で敷き、アイコンの「急上昇矢印」を連想させる */}
+      <AbsoluteFill
+        style={{
+          background: `linear-gradient(160deg, ${COLOR.bg} 0%, ${COLOR.bg} 55%, #2A2640 100%)`,
+        }}
+      />
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'radial-gradient(circle at 50% 35%, #1e1b4b 0%, #07090e 75%)',
-          zIndex: 1,
+          width: 2400,
+          height: 220,
+          left: -600,
+          top: 1500,
+          background: `linear-gradient(90deg, ${COLOR.orange}, ${COLOR.yellow})`,
+          opacity: 0.18,
+          transform: 'rotate(-35deg)',
         }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: '30%',
-            left: '20%',
-            width: '600px',
-            height: '600px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.45) 0%, transparent 70%)',
-            filter: 'blur(70px)',
-            transform: `scale(${pulseScale})`,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '20%',
-            right: '15%',
-            width: '500px',
-            height: '500px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, transparent 70%)',
-            filter: 'blur(80px)',
-            transform: `scale(${1.2 - (pulseScale - 1)})`,
-          }}
-        />
-      </div>
+      />
 
-      {/* --- 上部ヘッダーバッジ --- */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          padding: '80px 60px 0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
+      {/* 上部: ブランドとタイトル（YouTube Shorts の下部 UI と被らないよう上側に置く） */}
+      <div style={{ position: 'absolute', top: 120, left: 70, right: 70 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+          <Img src={staticFile('brand/icon-512.png')} style={{ width: 96, height: 96, borderRadius: '50%' }} />
+          <span style={{ color: COLOR.yellow, fontSize: 44, fontWeight: 900 }}>{brandName}</span>
+        </div>
         <div
           style={{
-            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-            padding: '16px 36px',
-            borderRadius: '40px',
-            color: '#ffffff',
-            fontSize: '32px',
+            marginTop: 36,
+            color: COLOR.white,
+            fontSize: 52,
             fontWeight: 800,
-            boxShadow: '0 10px 30px rgba(99, 102, 241, 0.5)',
-            letterSpacing: '0.04em',
-          }}
-        >
-          ⚡️ 2026 最新AI速報
-        </div>
-
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.6)',
-            border: '2px solid rgba(255, 255, 255, 0.2)',
-            padding: '12px 28px',
-            borderRadius: '30px',
-            color: '#38bdf8',
-            fontSize: '28px',
-            fontWeight: 700,
-          }}
-        >
-          OmniPulse AI
-        </div>
-      </div>
-
-      {/* --- 中央: 動くバウンス字幕 (メインテロップ) --- */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          padding: '0 80px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-        }}
-      >
-        {/* 動画タイトルピル */}
-        <div
-          style={{
-            background: 'rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(10px)',
-            border: '2px solid rgba(255, 255, 255, 0.25)',
-            padding: '14px 32px',
-            borderRadius: '24px',
-            color: '#cbd5e1',
-            fontSize: '30px',
-            fontWeight: 700,
-            marginBottom: '36px',
+            lineHeight: 1.35,
+            borderLeft: `10px solid ${COLOR.red}`,
+            paddingLeft: 24,
           }}
         >
           {title}
         </div>
-
-        {/* メインテロップボックス */}
-        <div
-          style={{
-            background: 'rgba(7, 9, 14, 0.92)',
-            border: `5px solid ${captionHighlight}`,
-            borderRadius: '36px',
-            padding: '48px 56px',
-            boxShadow: `0 20px 60px rgba(0, 0, 0, 0.9), 0 0 40px ${captionHighlight}44`,
-            transform: `scale(${0.96 + captionSpring * 0.06})`,
-            maxWidth: '920px',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '56px',
-              fontWeight: 900,
-              color: captionHighlight,
-              lineHeight: 1.35,
-              letterSpacing: '-0.02em',
-              textShadow: '0 4px 20px rgba(0,0,0,0.8)',
-            }}
-          >
-            {currentCaption}
-          </span>
-        </div>
       </div>
 
-      {/* --- 下部: クリエイター情報 & SNSオーバーレイ --- */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          padding: '0 60px 80px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-        }}
-      >
-        {/* 左側: アカウント情報 */}
-        <div style={{ maxWidth: '650px' }}>
-          <div
-            style={{
-              fontSize: '40px',
-              fontWeight: 800,
-              color: '#ffffff',
-              marginBottom: '14px',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {creatorHandle}
-          </div>
-          <div
-            style={{
-              fontSize: '32px',
-              color: '#94a3b8',
-              lineHeight: 1.4,
-              marginBottom: '20px',
-            }}
-          >
-            #AIエージェント #自動化 #仕事効率化 #最新トレンド
-          </div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '12px',
-              background: 'rgba(255, 255, 255, 0.12)',
-              padding: '10px 24px',
-              borderRadius: '20px',
-              fontSize: '26px',
-              color: '#e2e8f0',
-            }}
-          >
-            🎵 Cyberpunk Lo-Fi Beat #04
-          </div>
-        </div>
+      {sequences}
 
-        {/* 右側: ソーシャルアクションモック */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '40px',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <div
-              style={{
-                width: '74px',
-                height: '74px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '36px',
-              }}
-            >
-              ❤️
-            </div>
-            <span style={{ fontSize: '24px', color: '#ffffff', fontWeight: 700, marginTop: '8px', display: 'block' }}>
-              48.2K
-            </span>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
-            <div
-              style={{
-                width: '74px',
-                height: '74px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '36px',
-              }}
-            >
-              💬
-            </div>
-            <span style={{ fontSize: '24px', color: '#ffffff', fontWeight: 700, marginTop: '8px', display: 'block' }}>
-              892
-            </span>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
-            <div
-              style={{
-                width: '74px',
-                height: '74px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '36px',
-              }}
-            >
-              ↗️
-            </div>
-            <span style={{ fontSize: '24px', color: '#ffffff', fontWeight: 700, marginTop: '8px', display: 'block' }}>
-              シェア
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* --- 最下部: リアルタイムプログレスバー --- */}
+      {/* 下部: ハンドル */}
       <div
         style={{
           position: 'absolute',
-          bottom: 0,
+          bottom: 330,
           left: 0,
           right: 0,
-          height: '14px',
-          backgroundColor: 'rgba(255, 255, 255, 0.2)',
-          zIndex: 20,
+          textAlign: 'center',
+          color: COLOR.muted,
+          fontSize: 34,
+          fontWeight: 700,
         }}
       >
-        <div
-          style={{
-            height: '100%',
-            width: `${progressPercent}%`,
-            background: 'linear-gradient(90deg, #6366f1, #38bdf8)',
-          }}
-        />
+        {handle}
       </div>
-    </div>
+
+      {/* 最下部: 進捗バー */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 14, background: 'rgba(255,255,255,0.15)' }}>
+        <div style={{ height: '100%', width: `${progress}%`, background: COLOR.yellow }} />
+      </div>
+    </AbsoluteFill>
   );
 };

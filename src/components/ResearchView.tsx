@@ -134,7 +134,7 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Flame size={16} color="var(--accent-amber)" />
                   <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--accent-amber)' }}>
-                    Buzz {trend.buzzScore}/100
+                    Buzz {trend.buzzScore ?? '-'}/100
                   </span>
                 </div>
               </div>
@@ -163,10 +163,10 @@ export const ResearchView: React.FC<ResearchViewProps> = ({
               {/* Metrics pill */}
               <div style={{ display: 'flex', gap: '14px', marginBottom: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <div>
-                  検索ボリューム: <strong style={{ color: 'var(--text-main)' }}>{trend.searchVolume}</strong>
+                  検索ボリューム: <strong style={{ color: 'var(--text-main)' }}>{trend.searchVolume ?? '-'}</strong>
                 </div>
                 <div>
-                  急上昇速度: <strong style={{ color: 'var(--accent-emerald)' }}>{trend.trendVelocity}</strong>
+                  急上昇速度: <strong style={{ color: 'var(--accent-emerald)' }}>{trend.trendVelocity ?? '-'}</strong>
                 </div>
               </div>
 

@@ -1,13 +1,24 @@
 import { VideoProject, HighlightClip, PlatformType } from './types';
+import { diagnosePerformance, weightedRetention } from './agents/performanceDiagnosis';
+
+// 1行壊れた JSON でダッシュボード全体が落ちないよう、パース失敗時は fallback を返す
+export function safeJson<T>(s: string | null | undefined, fallback: T): T {
+  if (!s) return fallback;
+  try {
+    return JSON.parse(s) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export function mapDbProjectToUi(dbProj: any): VideoProject {
   const longForm = dbProj.longFormVideo ? {
     title: dbProj.longFormVideo.title,
     description: dbProj.longFormVideo.description || '',
-    duration: dbProj.longFormVideo.durationSec || 600,
+    duration: dbProj.longFormVideo.durationSec ?? 0,
     thumbnailUrl: dbProj.longFormVideo.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
     status: (dbProj.longFormVideo.status as any) || 'rendered',
-    script: dbProj.longFormVideo.scriptJson ? JSON.parse(dbProj.longFormVideo.scriptJson) : []
+    script: safeJson(dbProj.longFormVideo.scriptJson, [])
   } : {
     title: dbProj.title,
     description: dbProj.concept,
@@ -41,13 +52,13 @@ export function mapDbProjectToUi(dbProj: any): VideoProject {
   const publishingMetadata = {
     youtube: {
       title: ytLog?.title || dbProj.title,
-      tags: ytLog?.tagsJson ? JSON.parse(ytLog.tagsJson) : ['AIエージェント', '最新トレンド', '自動化'],
+      tags: safeJson<string[]>(ytLog?.tagsJson, []),
       visibility: 'public' as const,
       published: ytLog?.status === 'published'
     },
     tiktok: {
       caption: ttLog?.caption || dbProj.concept,
-      hashtags: ttLog?.tagsJson ? JSON.parse(ttLog.tagsJson) : ['AI活用', '神ツール', '動画制作'],
+      hashtags: safeJson<string[]>(ttLog?.tagsJson, []),
       privacyLevel: 'public_to_everyone' as const,
       published: ttLog?.status === 'published'
     },
@@ -69,30 +80,50 @@ export function mapDbProjectToUi(dbProj: any): VideoProject {
     concept: dbProj.concept,
     stage: dbProj.stage || 'production',
     targetAudience: dbProj.targetAudience || '20〜40代 ITビジネス層',
-    estimatedViews: dbProj.estimatedViews || '100,000+',
+    estimatedViews: dbProj.estimatedViews || '-',
     createdAt: new Date(dbProj.createdAt).toISOString().replace('T', ' ').substring(0, 16),
     updatedAt: new Date(dbProj.updatedAt || dbProj.createdAt).toISOString().replace('T', ' ').substring(0, 16),
     longForm,
     shortClips,
     publishingMetadata,
-    analytics: dbProj.analytics && dbProj.analytics.length > 0 ? {
-      totalViews: dbProj.analytics.reduce((acc: number, curr: any) => acc + curr.views, 0),
-      retentionRate: dbProj.analytics[0]?.retentionRate || 75.0,
-      totalLikes: dbProj.analytics.reduce((acc: number, curr: any) => acc + curr.likes, 0),
-      totalShares: dbProj.analytics.reduce((acc: number, curr: any) => acc + curr.shares, 0),
-      totalComments: dbProj.analytics.reduce((acc: number, curr: any) => acc + curr.comments, 0),
-      platformBreakdown: dbProj.analytics.map((a: any) => ({
-        platform: a.platform as PlatformType,
-        views: a.views,
-        engagementRate: a.engagementRate,
-        topComment: a.topComment || undefined
-      })),
-      aiDiagnosis: {
-        summary: '冒頭1.2秒の強烈なフック（否定形の疑問文）により、TikTokおよびYouTube Shortsでの初期離脱が大幅に改善。',
-        strengths: ['フック部分のテロップに蛍光イエローのバウンス効果を採用したことで視線誘導に成功'],
-        weaknesses: ['後半のまとめ部分で若干テンポが落ち、微小な離脱が発生している'],
-        actionableFeedbackForNext: '次回はまとめパートにカウントダウンタイマーを挿入して最後まで見切らせる構成を推奨します。'
-      }
-    } : undefined
+    analytics: mapAnalytics(dbProj),
+  };
+}
+
+function mapAnalytics(dbProj: any): VideoProject['analytics'] {
+  const rows: any[] = dbProj.analytics || [];
+  if (rows.length === 0) return undefined;
+
+  const platforms = rows.map((a) => ({
+    platform: a.platform as PlatformType,
+    views: a.views,
+    likes: a.likes,
+    shares: a.shares,
+    comments: a.comments,
+    engagementRate: a.engagementRate,
+    topComment: a.topComment || undefined,
+  }));
+  const totalViews = platforms.reduce((acc, p) => acc + p.views, 0);
+  const retentionRate = weightedRetention(rows);
+  const diagnosis = diagnosePerformance(dbProj.title, { retentionRate, platforms });
+
+  return {
+    totalViews,
+    retentionRate,
+    totalLikes: platforms.reduce((acc, p) => acc + p.likes, 0),
+    totalShares: platforms.reduce((acc, p) => acc + p.shares, 0),
+    totalComments: platforms.reduce((acc, p) => acc + p.comments, 0),
+    platformBreakdown: platforms.map(({ platform, views, engagementRate, topComment }) => ({
+      platform,
+      views,
+      engagementRate,
+      topComment,
+    })),
+    aiDiagnosis: {
+      summary: diagnosis.summary,
+      strengths: diagnosis.strengths,
+      weaknesses: diagnosis.weaknesses,
+      actionableFeedbackForNext: diagnosis.actionableKnowledge?.ruleText,
+    },
   };
 }

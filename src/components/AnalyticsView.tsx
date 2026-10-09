@@ -55,8 +55,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             この動画のアナリティクス実績はまだ集計されていません
           </h3>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '580px', margin: '0 auto 24px auto', lineHeight: 1.6 }}>
-            SNS配信後の再生回数、視聴維持率、いいね数、コメントをデータベースから集計します。
-            下のボタンをクリックすると、CriticAIが動画パフォーマンスを集計・要因分析し、改善ルールを抽出します。
+            各SNSから取得した実測値（再生回数、視聴維持率、いいね数、コメント）が登録されると、ここに集計と分析が表示されます。
+            実測値は <code>POST /api/analytics</code> に <code>metrics</code> を渡して登録します。
           </p>
           <button
             onClick={() => onRefreshAnalytics ? onRefreshAnalytics(project.id) : onApplyFeedbackToNext()}
@@ -92,7 +92,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <span>平均視聴維持率</span>
               </div>
               <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-                {analytics.retentionRate}%
+                {analytics.retentionRate === null ? '未取得' : `${analytics.retentionRate}%`}
               </div>
             </div>
 
@@ -199,10 +199,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   color: '#e0e7ff',
                   lineHeight: 1.5
                 }}>
-                  総再生数 {analytics.totalViews.toLocaleString()}回・平均維持率 {analytics.retentionRate}%。
-                  {analytics.retentionRate >= 75
-                    ? ' 冒頭のフック設計および動的字幕テロップにより、高い視覚的拘束力を維持できています。'
-                    : ' 冒頭離脱の改善とエンディングCTAの切り替えタイミングの最適化が必要です。'}
+                  {analytics.aiDiagnosis.summary}
                 </div>
 
                 {/* Strengths */}
@@ -212,7 +209,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <span>成果が出たポイント（Strengths）</span>
                   </div>
                   <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {(analytics.aiDiagnosis?.strengths || ['フック部分のテロップに蛍光イエローのバウンス効果を採用したことで視線誘導に成功']).map((s, idx) => (
+                    {analytics.aiDiagnosis.strengths.map((s, idx) => (
                       <li key={idx} style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', paddingLeft: '14px', position: 'relative' }}>
                         <span style={{ position: 'absolute', left: 0, color: 'var(--accent-emerald)' }}>•</span>
                         {s}
@@ -228,7 +225,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <span>改善が必要な離脱ポイント（Weaknesses）</span>
                   </div>
                   <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {(analytics.aiDiagnosis?.weaknesses || ['まとめパートのプロフィール誘導CTAがやや早く切り替わり、保存率に改善余地']).map((w, idx) => (
+                    {analytics.aiDiagnosis.weaknesses.map((w, idx) => (
                       <li key={idx} style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', paddingLeft: '14px', position: 'relative' }}>
                         <span style={{ position: 'absolute', left: 0, color: 'var(--accent-amber)' }}>•</span>
                         {w}
@@ -247,13 +244,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   🔄 今回抽出されたチャンネル固有の学習ルール:
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: 1.45 }}>
-                  {analytics.aiDiagnosis?.actionableFeedbackForNext || '冒頭で「従来のやり方の否定＋最新エージェントの提示」をセットで行うと維持率が平均+18%向上。次回企画に強制反映します。'}
+                  {analytics.aiDiagnosis.actionableFeedbackForNext || '再生数が少ないため、まだ知見として保存できるデータがありません。'}
                 </p>
 
                 <button
                   onClick={onApplyFeedbackToNext}
                   className="btn-primary"
-                  disabled={isApplying}
+                  disabled={isApplying || !analytics.aiDiagnosis.actionableFeedbackForNext}
                   style={{ width: '100%', fontSize: '0.85rem' }}
                 >
                   <Lightbulb size={16} />

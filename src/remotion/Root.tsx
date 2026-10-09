@@ -1,23 +1,31 @@
 import React from 'react';
-import { Composition } from 'remotion';
-import { ShortVideo, ShortVideoProps } from './ShortVideo';
+import { CalculateMetadataFunction, Composition } from 'remotion';
+import { ShortVideo, ShortVideoProps, TAIL_FRAMES } from './ShortVideo';
+
+const FPS = 30;
+
+// 尺は字幕行（= 音声）の合計から決める
+const calculateMetadata: CalculateMetadataFunction<ShortVideoProps> = ({ props }) => ({
+  durationInFrames: Math.max(FPS, props.lines.reduce((acc, l) => acc + l.durationInFrames, 0) + TAIL_FRAMES),
+});
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <>
-      <Composition
-        id="ShortClip1"
-        component={ShortVideo as any}
-        durationInFrames={840} // 28 seconds @ 30fps
-        fps={30}
-        width={1080}
-        height={1920}
-        defaultProps={{
-          title: '【警告】チャットAIの時代は終了しました',
-          hookSentence: '「まだチャットAIに質問して返答待ってるの？それ時代遅れです！」',
-          creatorHandle: '@ai_pulse_lab',
-        }}
-      />
-    </>
+    <Composition
+      id="Short"
+      component={ShortVideo}
+      fps={FPS}
+      width={1080}
+      height={1920}
+      durationInFrames={FPS}
+      calculateMetadata={calculateMetadata}
+      // Remotion Studio でのレイアウト確認用（音声なし）。実際の値は scripts/agent/cli.ts produce が --props で渡す
+      defaultProps={{
+        title: 'タイトル',
+        brandName: 'ついていくのが精一杯',
+        handle: '@tuiteikunogaseiippai',
+        lines: [],
+      }}
+    />
   );
 };

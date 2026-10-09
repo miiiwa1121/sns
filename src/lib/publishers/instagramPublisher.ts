@@ -41,15 +41,12 @@ export class InstagramPublisher {
     const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
     const igAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
 
-    // 2. 認証情報が未設定の場合はシミュレーションモードで安全に応答
+    // 2. 認証情報が未設定の場合は投稿しない（成功扱いにしない）
     if (!accessToken || !igAccountId) {
-      const simulatedMediaId = `ig_${Date.now()}`;
       return {
-        success: true,
-        mediaId: simulatedMediaId,
-        videoUrl: `https://www.instagram.com/reel/${simulatedMediaId}`,
+        success: false,
         isSimulated: true,
-        message: 'Instagram Graph API認証情報（INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID）が未設定のため、シミュレーション投稿として処理しました。環境変数を設定すると実リールへ直接公開されます。',
+        message: 'Instagram Graph API認証情報（INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_BUSINESS_ACCOUNT_ID）が未設定のため、投稿していません。',
       };
     }
 

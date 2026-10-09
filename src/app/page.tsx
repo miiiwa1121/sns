@@ -166,131 +166,53 @@ export default function DashboardPage() {
     showNotification(`✨ 新規チャンネル「${newAccount.name}」を作成しました！`);
   };
 
-  // 1. 自律リサーチの手動トリガー
-  const handleTriggerNewResearch = () => {
-    setIsGenerating(true);
-    addLog('TrendScout', 'info', 'YouTube, TikTok, X のリアルタイム急上昇トレンドをスキャン中...');
-
-    setTimeout(() => {
-      const currentAcc = accounts.find(a => a.id === currentAccountId);
-      const isTech = currentAcc?.slug === 'techstart-jp';
-
-      const newTrend: TrendItem = isTech ? {
-        id: `trend-${Date.now()}`,
-        topic: '2026年プログラミング初学者が選ぶべき最強言語：PythonかTypeScriptか？',
-        category: 'キャリア / スキルアップ',
-        platforms: ['youtube', 'x'],
-        buzzScore: 91,
-        searchVolume: '140K / week',
-        trendVelocity: '+76%',
-        sentiment: 'positive',
-        suggestedAngle: '初学者が半年で案件獲得するまでの最短ロードマップ比較'
-      } : {
-        id: `trend-${Date.now()}`,
-        topic: 'PCを勝手に操作する自律型AIエージェント「Claude Code & Manus」の破壊的進化',
-        category: 'AI・IT',
-        platforms: ['youtube', 'x', 'tiktok'],
-        buzzScore: 97,
-        searchVolume: '620K / week',
-        trendVelocity: '+240%',
-        sentiment: 'positive',
-        suggestedAngle: '指示待ちチャットAIの終焉と、仕事を丸投げできる自律エージェントの現場導入術'
-      };
-
-      setTrends(prev => [newTrend, ...prev]);
-      setIsGenerating(false);
-      addLog('TrendScout', 'success', `新トレンド「${newTrend.topic}」(Buzz: ${newTrend.buzzScore}) を検知しました。`);
-      showNotification('💡 新しい急上昇トレンドを検出・登録しました！');
-    }, 1500);
+  // DB から現在のアカウントを取り直して画面に反映する
+  const reloadCurrentAccount = async () => {
+    const accRes = await fetch('/api/accounts');
+    const accData = await accRes.json();
+    if (accData.success && accData.accounts) {
+      setAccounts(accData.accounts);
+      const updated = accData.accounts.find((a: any) => a.id === currentAccountId);
+      if (updated?.projects) setProjects(updated.projects.map(mapDbProjectToUi));
+      if (updated?.agentKnowledges) setKnowledges(updated.agentKnowledges);
+    }
   };
 
-  // トレンドから動画制作へ進む
-  const handleSelectTrendToProduce = (trend: TrendItem) => {
+  // 1. 自律リサーチの手動トリガー
+  // 以前は固定の架空トレンド（架空の検索ボリューム・Buzzスコア）を画面に追加していたため撤去した。
+  const handleTriggerNewResearch = () => {
+    addLog('TrendScout', 'warning', 'トレンドの自動検知は未実装です。リサーチ結果は TrendResearch テーブルに登録してください。');
+    showNotification('⚠️ トレンドの自動検知は未実装です');
+  };
+
+  // トレンドから下書きプロジェクトを DB に作成し、制作画面へ進む
+  const handleSelectTrendToProduce = async (trend: TrendItem) => {
     setIsGenerating(true);
-    addLog('ScriptMaster', 'info', `トレンド「${trend.topic}」に基づく長尺マスター台本および切り抜きショートの構成を生成中...`);
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trendId: trend.id }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        addLog('ScriptMaster', 'warning', `プロジェクト作成に失敗しました: ${data.error}`);
+        showNotification(`⚠️ ${data.error}`);
+        return;
+      }
 
-    setTimeout(() => {
-      const currentAcc = accounts.find(a => a.id === currentAccountId);
-      const newProjId = `proj-${Date.now()}`;
-      const newProject: VideoProject = {
-        id: newProjId,
-        title: `【速報】${trend.topic}`,
-        concept: trend.suggestedAngle,
-        stage: 'production',
-        targetAudience: currentAcc?.targetAudience || '20〜40代 ITビジネス層',
-        estimatedViews: '120,000+',
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        longForm: {
-          title: `【速報】${trend.topic}`,
-          description: `今回は急上昇トレンド「${trend.topic}」について徹底解説します！\n\n目次:\n0:00 イントロ・フック\n01:30 トレンドの背景\n04:00 具体的な活用法と実演デモ\n07:30 まとめと今後の展望`,
-          duration: 600,
-          thumbnailUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200&q=80',
-          status: 'rendered',
-          script: [
-            {
-              section: 'イントロ / フック',
-              narration: `現在SNSで話題沸騰中の「${trend.topic}」ですが、皆さんはもうチェックしましたか？`,
-              visualCue: 'ネオンタイポグラフィ、急上昇グラフ演出',
-              durationSec: 25
-            },
-            {
-              section: '核心の解説',
-              narration: 'この技術がなぜ注目されているのか、その理由は圧倒的な業務効率化と自動化にあります。',
-              visualCue: '比較UIとデモ画面のアニメーション',
-              durationSec: 60
-            }
-          ]
-        },
-        shortClips: [
-          {
-            id: `clip-${Date.now()}-1`,
-            title: `【神まとめ】30秒でわかる${trend.topic.slice(0, 18)}...`,
-            startTime: 0,
-            endTime: 28,
-            duration: 28,
-            hookHookSentence: '「まだ手作業でこれやってる人、今すぐやめてください！」',
-            targetPlatforms: ['youtube', 'tiktok', 'instagram', 'x'],
-            aspectRatio: '9:16',
-            captionStyle: 'dynamic-bounce',
-            estimatedRetentionRate: 88,
-            bgmTrack: 'Cyberpunk Lo-Fi Beat #04',
-            readyToPublish: true
-          }
-        ],
-        publishingMetadata: {
-          youtube: {
-            title: `【速報】${trend.topic} #shorts`,
-            tags: ['AIエージェント', '最新トレンド', '自動化'],
-            visibility: 'public',
-            published: false
-          },
-          tiktok: {
-            caption: `${trend.topic}がヤバすぎる件！ #神ツール #最新情報`,
-            hashtags: ['AI活用', 'トレンド', '自動化'],
-            privacyLevel: 'public_to_everyone',
-            published: false
-          },
-          instagram: {
-            caption: `【必見】${trend.topic}\n詳細はプロフリンクから！`,
-            coverFrameSec: 1,
-            shareToFeed: true,
-            published: false
-          },
-          x: {
-            postText: `【速報】${trend.topic}\n\n動画でサクッと解説しました👇`,
-            published: false
-          }
-        }
-      };
-
-      setProjects(prev => [newProject, ...prev]);
-      setCurrentProjectId(newProjId);
-      setIsGenerating(false);
+      const created = mapDbProjectToUi(data.project);
+      setProjects(prev => [created, ...prev]);
+      setCurrentProjectId(created.id);
       setActiveTab('studio');
-      addLog('ClipCutter', 'success', `長尺台本と縦型ショート動画の生成が完了しました。（ID: ${newProjId}）`);
-      showNotification('🎬 新規プロジェクトの台本とショート動画が生成されました！');
-    }, 2000);
+      addLog('ScriptMaster', 'success', `下書きプロジェクト「${created.title}」を作成しました。（ID: ${created.id}）台本は未作成です。`);
+      showNotification('📝 下書きプロジェクトを作成しました');
+    } catch (err: any) {
+      console.error('Failed to create project:', err);
+      addLog('ScriptMaster', 'warning', `プロジェクト作成の通信エラー: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // 3. 全SNS一括配信の実行
@@ -307,29 +229,20 @@ export default function DashboardPage() {
 
       const data = await res.json();
 
-      if (data.success) {
-        setProjects(prev => prev.map(p => {
-          if (p.id === projectId) {
-            return {
-              ...p,
-              stage: 'published',
-              publishingMetadata: {
-                youtube: { ...p.publishingMetadata.youtube, published: true },
-                tiktok: { ...p.publishingMetadata.tiktok, published: true },
-                instagram: { ...p.publishingMetadata.instagram, published: true },
-                x: { ...p.publishingMetadata.x, published: true }
-              }
-            };
-          }
-          return p;
-        }));
+      // 成否はプラットフォームごとに DB に記録されているので、表示は DB から取り直す
+      await reloadCurrentAccount();
 
-        const ytMsg = data.results?.youtube?.message || '全プラットフォームへの送信完了';
-        addLog('Dispatcher', 'success', `【全SNS配信完了】${ytMsg}`);
-        showNotification(data.message || '🚀 全プラットフォームへの配信処理が完了しました！');
+      if (data.success) {
+        addLog('Dispatcher', 'success', `配信成功: ${data.succeeded.join(', ')}`);
+        for (const f of data.failed as { platform: string; message: string }[]) {
+          addLog('Dispatcher', 'warning', `配信失敗 (${f.platform}): ${f.message}`);
+        }
+        showNotification(data.allPublished
+          ? '🚀 全プラットフォームへの配信が完了しました'
+          : `⚠️ 一部のみ配信しました（成功: ${data.succeeded.join(', ')}）`);
       } else {
-        addLog('Dispatcher', 'warning', `配信警告: ${data.error}`);
-        showNotification(`⚠️ 配信通知: ${data.error}`);
+        addLog('Dispatcher', 'warning', `配信失敗: ${data.error}`);
+        showNotification(`⚠️ 配信できませんでした: ${data.error}`);
       }
     } catch (err: any) {
       console.error('Publish failed:', err);
@@ -373,8 +286,9 @@ export default function DashboardPage() {
         addLog('CriticAI', 'success', `【自律学習完了】「${previewText}」をナレッジベースに恒久反映しました。`);
         showNotification('🧠 AIエージェントのナレッジベースが更新され、次回の動画制作精度が向上しました！');
       } else {
-        addLog('CriticAI', 'warning', `知見保存警告: ${data.error || '知見保存に失敗しました'}`);
-        showNotification(`⚠️ 知見保存通知: ${data.error}`);
+        const reason = data.error || data.message || '知見保存に失敗しました';
+        addLog('CriticAI', 'warning', `知見は保存されませんでした: ${reason}`);
+        showNotification(`⚠️ ${reason}`);
       }
     } catch (err: any) {
       console.error('Failed to apply analytics feedback:', err);
@@ -402,17 +316,12 @@ export default function DashboardPage() {
 
       const data = await res.json();
       if (data.success) {
-        // アカウントデータを再同期
-        const accRes = await fetch('/api/accounts');
-        const accData = await accRes.json();
-        if (accData.success && accData.accounts) {
-          setAccounts(accData.accounts);
-          const updatedAcc = accData.accounts.find((a: any) => a.id === currentAccountId);
-          if (updatedAcc?.projects) setProjects(updatedAcc.projects.map(mapDbProjectToUi));
-          if (updatedAcc?.agentKnowledges) setKnowledges(updatedAcc.agentKnowledges);
-        }
-        addLog('CriticAI', 'success', `【集計完了】動画のアナリティクス指標と改善レポートを生成しました。`);
-        showNotification('📊 アナリティクス実績が集計されました！');
+        await reloadCurrentAccount();
+        addLog('CriticAI', 'success', data.message);
+        showNotification('📊 実測アナリティクスを分析しました');
+      } else {
+        addLog('CriticAI', 'warning', `分析できませんでした: ${data.error}`);
+        showNotification(`⚠️ ${data.error}`);
       }
     } catch (err: any) {
       console.error('Failed to refresh analytics:', err);
@@ -422,47 +331,17 @@ export default function DashboardPage() {
     }
   };
 
-  // 5. 自律モード切り替え & Auto-Pilot 実行
-  const handleToggleAutonomous = async () => {
-    const next = !autonomousMode;
-    setAutonomousMode(next);
-
-    if (next) {
-      addLog('TrendScout', 'info', '⚡ 完全自律モード (Auto-Pilot) が起動しました。無人巡回サイクル（リサーチ→台本→投稿→分析）を開始します...');
-      showNotification('⚡ 完全自律モード ON: AIが無人自走サイクルを開始します');
-
-      try {
-        const res = await fetch('/api/cron/autonomous-cycle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accountSlug: currentAccount?.slug || 'ai-pulse-lab' }),
-        });
-
-        const data = await res.json();
-        if (data.success && data.cycleSummary) {
-          addLog('ScriptMaster', 'info', `【自動制作】「${data.cycleSummary.projectTitle.slice(0, 30)}...」を生成しました。`);
-          addLog('Dispatcher', 'success', '【自動配信】YouTube, TikTok, Instagram, X への無人投稿を完了しました。');
-          addLog('CriticAI', 'success', `【自律学習】新ルール「${data.cycleSummary.newKnowledge.slice(0, 30)}...」を蓄積しました。`);
-          showNotification('🎉 Auto-Pilot 巡回サイクルが完走しました！新動画が自動投稿・学習されました。');
-
-          // アカウントデータの最新再取得
-          const accRes = await fetch('/api/accounts');
-          const accData = await accRes.json();
-          if (accData.success && accData.accounts) {
-            setAccounts(accData.accounts);
-            const updated = accData.accounts.find((a: any) => a.id === currentAccountId) || accData.accounts[0];
-            if (updated?.projects) setProjects(updated.projects.map(mapDbProjectToUi));
-            if (updated?.agentKnowledges) setKnowledges(updated.agentKnowledges);
-          }
-        }
-      } catch (err: any) {
-        console.error('Auto-Pilot error:', err);
-        addLog('TrendScout', 'warning', `Auto-Pilot 通信エラー: ${err.message}`);
-      }
-    } else {
-      addLog('Dispatcher', 'info', '承認制モード (Human-in-Loop) に切り替わりました。投稿前にレビューを待機します。');
-      showNotification('🛡️ 承認制モード: 人間のワンクリック承認を経て投稿されます。');
+  // 5. 自律モード切り替え
+  // Auto-Pilot（/api/cron/autonomous-cycle）は未実装で、INTERNAL_API_TOKEN が必要なためブラウザからは呼ばない
+  const handleToggleAutonomous = () => {
+    if (!autonomousMode) {
+      addLog('TrendScout', 'warning', '完全自律モード (Auto-Pilot) は未実装です。承認制モードのまま運用します。');
+      showNotification('⚠️ 完全自律モードは未実装です');
+      return;
     }
+    setAutonomousMode(false);
+    addLog('Dispatcher', 'info', '承認制モード (Human-in-Loop) に切り替わりました。投稿前にレビューを待機します。');
+    showNotification('🛡️ 承認制モード: 人間のワンクリック承認を経て投稿されます。');
   };
 
   const pendingApprovals = projects.filter(
@@ -474,9 +353,11 @@ export default function DashboardPage() {
 
   // 100% データベース実データから集計されたリアルKPI
   const realTotalViews = projects.reduce((acc, p) => acc + (p.analytics?.totalViews || 0), 0);
-  const projectsWithAnalytics = projects.filter(p => p.analytics);
-  const avgRetention = projectsWithAnalytics.length > 0
-    ? (projectsWithAnalytics.reduce((acc, p) => acc + (p.analytics?.retentionRate || 0), 0) / projectsWithAnalytics.length).toFixed(1) + '%'
+  const retentions = projects
+    .map(p => p.analytics?.retentionRate)
+    .filter((r): r is number => typeof r === 'number');
+  const avgRetention = retentions.length > 0
+    ? (retentions.reduce((acc, r) => acc + r, 0) / retentions.length).toFixed(1) + '%'
     : '-';
 
   return (

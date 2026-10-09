@@ -47,15 +47,15 @@ erDiagram
 - `isConnected`: 接続状態フラグ
 
 ### 3. `TrendResearch` (トレンドリサーチ履歴)
-リサーチAI（TrendScout）が収集したトレンド情報。
+エージェントが Web 検索で調べた話題（`npm run agent -- trend:add`）。
 - `id`: 一意キー
 - `accountId`: 対象Account
 - `topic`: トレンドトピック名
 - `category`: カテゴリ
-- `buzzScore`: Buzzスコア (0〜100)
-- `searchVolume`: 検索ボリューム
-- `trendVelocity`: 急上昇率
-- `suggestedAngle`: AIが考案したバズる切り口
+- `buzzScore`, `searchVolume`, `trendVelocity`: 実測できた場合のみ。推測値は入れず null にする
+- `suggestedAngle`: 動画の切り口
+- `summary`: 調べて分かった事実の要約
+- `sourcesJson`: 出典 `[{ title, url }]`（CLI からの登録では必須）
 
 ### 4. `Project` (動画企画プロジェクト)
 1つの動画企画のルート。長尺動画と複数の切り抜きショートを束ねる。
@@ -64,6 +64,8 @@ erDiagram
 - `title`: 企画タイトル
 - `concept`: 企画詳細
 - `stage`: `research` | `production` | `review` | `published` | `analyzed`
+  - `production`: 台本あり・未レンダリング / `review`: レンダリング済み・承認待ち / `published`: 1媒体以上で配信済み / `analyzed`: 実測値で分析済み
+- `trendResearchId`: 元になったリサーチ（出典の追跡用、任意）
 
 ### 5. `LongFormVideo` (長尺動画マスター)
 YouTube向けの横型マスター動画。
@@ -87,6 +89,9 @@ YouTube向けの横型マスター動画。
 - `captionStyle`: テロップスタイル（`dynamic-bounce` 等）
 - `aspectRatio`: デフォルト `9:16`
 - `estimatedRetentionRate`: 予測視聴維持率（%）
+- `scriptJson`: ショートの台本 `[{ text, caption? }]`。1要素 = 読み上げ1行 = 字幕1枚
+- `renderedFilePath`: レンダリング済み MP4 の `public/videos/` 配下のファイル名。`POST /api/publish` はこのファイルを配信する
+- `readyToPublish`: 配信対象かどうか
 
 ### 7. `PublishLog` (配信ログ & スケジュール)
 プラットフォーム別の投稿スケジュールと配信結果。
@@ -95,7 +100,10 @@ YouTube向けの横型マスター動画。
 - `shortClipId`: 紐づくShortClip（ショートの場合）
 - `platform`: `youtube` | `tiktok` | `instagram` | `x`
 - `title`, `caption`, `tagsJson`: プラットフォーム最適化メタデータ
-- `status`: `draft` | `scheduled` | `published`
+- `status`: `draft` | `scheduled` | `published` | `failed`
+- `postUrl`: 投稿後の実URL（API が URL を返した場合、または手動投稿を `publish:record` で記録した場合）
+- `externalId`: プラットフォーム側の動画ID（YouTube の videoId 等）。実測値の自動取得に使う
+- `errorMessage`: `failed` の理由（認証未設定・APIエラー・未実装）
 - `scheduledAt`, `publishedAt`: 予約・公開日時
 
 ### 8. `AnalyticsMetric` (アナリティクス実績)
@@ -104,7 +112,7 @@ YouTube向けの横型マスター動画。
 - `projectId`: 紐づくProject
 - `platform`: プラットフォーム
 - `views`: 再生回数
-- `retentionRate`: 視聴維持率（%）
+- `retentionRate`: 視聴維持率（%）。未取得なら null（0 を入れない）
 - `likes`, `shares`, `comments`: エンゲージメント数
 - `engagementRate`: エンゲージメント率（%）
 - `topComment`: 代表的なコメント

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rejectCrossSite } from '@/lib/requestGuard';
 
 export async function GET() {
   try {
@@ -36,6 +37,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const rejected = rejectCrossSite(req);
+  if (rejected) return rejected;
+
   try {
     const body = await req.json();
     const {

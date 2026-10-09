@@ -9,9 +9,9 @@ export interface TrendItem {
   topic: string;
   category: string;
   platforms: PlatformType[];
-  buzzScore: number; // 0 - 100
-  searchVolume: string;
-  trendVelocity: string;
+  buzzScore: number | null; // 0 - 100（実測できない場合は null）
+  searchVolume: string | null;
+  trendVelocity: string | null;
   sentiment: 'positive' | 'neutral' | 'curious';
   suggestedAngle: string;
 }
@@ -89,7 +89,7 @@ export interface VideoProject {
   // アナリティクス結果（投稿後）
   analytics?: {
     totalViews: number;
-    retentionRate: number; // %
+    retentionRate: number | null; // %（未取得なら null）
     totalLikes: number;
     totalShares: number;
     totalComments: number;
@@ -103,7 +103,8 @@ export interface VideoProject {
       summary: string;
       strengths: string[];
       weaknesses: string[];
-      actionableFeedbackForNext: string;
+      // 再生数が少なく知見化できない場合は undefined
+      actionableFeedbackForNext?: string;
     };
   };
 }

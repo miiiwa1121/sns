@@ -69,8 +69,8 @@ docs は**日本語**で、実務レベル一式を揃える（要件定義 / �
 # 依存関係インストール
 npm install
 
-# 開発サーバー起動 (デフォルト port 3001 推奨)
-npm run dev -- -p 3001
+# 開発サーバー起動 (127.0.0.1:3001 にバインド。LAN には公開しない)
+npm run dev
 
 # ビルド & 型チェック
 npm run build
@@ -78,8 +78,14 @@ npm run build
 # データベースマイグレーション反映
 npx prisma db push
 
-# データベース初期シード投入
-npx tsx prisma/seed.ts
+# エージェント運用 CLI（リサーチ→台本→制作→承認→配信→計測→分析）
+# 手順: docs/operations/agent-runbook.md
+npm run -s agent -- status
+
+# YouTube のリフレッシュトークン取得（初回のみ。docs/operations/youtube-setup.md）
+npm run youtube:auth
+
+# ⚠️ prisma/seed.ts は全データを削除して架空のデモアカウントを入れる。実運用DBでは実行しないこと
 
 # Prisma Studio (DB GUI閲覧)
 npx prisma studio

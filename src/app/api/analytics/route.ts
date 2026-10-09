@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { CriticAgent } from '@/lib/agents/criticAgent';
+import { rejectCrossSite } from '@/lib/requestGuard';
+import { analyzeProject, parsePlatformMetrics, recordMetrics } from '@/lib/services/analyticsService';
 
 export async function GET(req: Request) {
   try {
@@ -20,101 +21,68 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ success: true, knowledges });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Failed to get knowledges:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: '知見の取得に失敗しました' },
       { status: 500 }
     );
   }
 }
 
+/**
+ * 実測アナリティクスの登録と CriticAI 分析。
+ * - body.metrics があれば、送られたプラットフォームの実測値を置き換えて保存する
+ * - その後、DB に登録済みの実測値で分析する
+ * - 実測値が1件も無ければ 400（架空の数値で補完しない）
+ */
 export async function POST(req: Request) {
+  const rejected = rejectCrossSite(req);
+  if (rejected) return rejected;
+
   try {
     const body = await req.json();
-    const { projectId, accountId, metrics, applyToKnowledge } = body;
+    const { projectId, metrics, applyToKnowledge } = body;
 
-    if (!projectId || !accountId) {
+    if (!projectId) {
       return NextResponse.json(
-        { success: false, error: 'projectId と accountId は必須です' },
+        { success: false, error: 'projectId は必須です' },
         { status: 400 }
       );
     }
 
-    // 1. プロジェクトの取得
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: {
-        analytics: true,
-      },
-    });
-
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: '指定されたプロジェクトが見つかりません' },
-        { status: 404 }
-      );
-    }
-
-    const defaultMetrics = {
-      totalViews: 384000,
-      retentionRate: 76.5,
-      totalLikes: 32400,
-      totalShares: 4800,
-      totalComments: 1420,
-      platforms: [
-        { platform: 'youtube', views: 182000, engagementRate: 9.2, topComment: 'このシステム本当に一般公開してほしい！切り抜きのテンポ最高' },
-        { platform: 'tiktok', views: 148000, engagementRate: 12.4, topComment: '最初の1秒で気になって最後まで見ちゃったw' },
-        { platform: 'instagram', views: 36000, engagementRate: 6.8, topComment: '文字のバウンスアニメーション見やすいですね' },
-        { platform: 'x', views: 18000, engagementRate: 5.1, topComment: 'RemotionとAIの組み合わせが凄い' },
-      ],
-    };
-
-    const targetMetrics = metrics || defaultMetrics;
-
-    // 2. CriticAI による要因分析
-    const diagnosis = CriticAgent.analyzePerformance({
-      accountId,
-      projectId,
-      videoTitle: project.title,
-      metrics: targetMetrics,
-    });
-
-    // 3. SQLite DB へのアナリティクス指標の保存
-    if (project.analytics.length === 0) {
-      for (const p of targetMetrics.platforms) {
-        await prisma.analyticsMetric.create({
-          data: {
-            projectId: project.id,
-            platform: p.platform,
-            views: p.views,
-            retentionRate: targetMetrics.retentionRate,
-            likes: Math.round(p.views * 0.08),
-            shares: Math.round(p.views * 0.01),
-            comments: Math.round(p.views * 0.003),
-            engagementRate: p.engagementRate,
-            topComment: p.topComment,
-          },
-        });
+    if (metrics !== undefined) {
+      const parsed = parsePlatformMetrics(metrics?.platforms);
+      if (typeof parsed === 'string') {
+        return NextResponse.json({ success: false, error: parsed }, { status: 400 });
+      }
+      const exists = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+      if (!exists) {
+        return NextResponse.json({ success: false, error: '指定されたプロジェクトが見つかりません' }, { status: 404 });
+      }
+      const recordError = await recordMetrics(projectId, parsed);
+      if (recordError) {
+        return NextResponse.json({ success: false, error: recordError }, { status: 400 });
       }
     }
 
-    // 4. 学習知見の蓄積 (AgentKnowledge テーブルへ反映)
-    let persistedKnowledge = null;
-    if (applyToKnowledge) {
-      persistedKnowledge = await CriticAgent.persistKnowledge(accountId, diagnosis.actionableKnowledge);
+    const outcome = await analyzeProject(projectId, Boolean(applyToKnowledge));
+    if (!outcome.ok) {
+      return NextResponse.json({ success: false, error: outcome.error }, { status: outcome.httpStatus });
     }
 
     return NextResponse.json({
       success: true,
-      diagnosis,
-      persistedKnowledge,
-      message: 'アナリティクス分析およびCriticAIによる知見抽出が完了しました！',
+      diagnosis: outcome.diagnosis,
+      persistedKnowledge: outcome.persistedKnowledge,
+      message: outcome.diagnosis.actionableKnowledge
+        ? '実測アナリティクスの分析が完了しました'
+        : '分析は完了しましたが、再生数が少ないため知見は保存していません',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Analytics API error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'アナリティクス分析中にエラーが発生しました' },
+      { success: false, error: 'アナリティクス分析中にエラーが発生しました' },
       { status: 500 }
     );
   }

@@ -45,17 +45,13 @@ export class TikTokPublisher {
     }
 
     const accessToken = process.env.TIKTOK_ACCESS_TOKEN;
-    const username = process.env.TIKTOK_CREATOR_USERNAME || 'ai_pulse_lab';
 
-    // 2. 認証情報が未設定の場合はシミュレーションモードで安全に応答
+    // 2. 認証情報が未設定の場合は投稿しない（成功扱いにしない）
     if (!accessToken) {
-      const simulatedPublishId = `tt_${Date.now()}`;
       return {
-        success: true,
-        publishId: simulatedPublishId,
-        videoUrl: `https://www.tiktok.com/@${username}/video/${simulatedPublishId}`,
+        success: false,
         isSimulated: true,
-        message: 'TikTok APIアクセストークン（TIKTOK_ACCESS_TOKEN）が未設定のため、シミュレーション投稿として処理しました。環境変数を設定すると実アカウントへ直接公開されます。',
+        message: 'TikTok APIアクセストークン（TIKTOK_ACCESS_TOKEN）が未設定のため、投稿していません。',
       };
     }
 
@@ -110,10 +106,10 @@ export class TikTokPublisher {
         throw new Error(`TikTokバイナリアップロードに失敗しました (ステータス: ${uploadRes.status})`);
       }
 
+      // publish_id は動画IDではないため URL は組み立てない（公開後に status/fetch で動画IDを取得する）
       return {
         success: true,
         publishId,
-        videoUrl: `https://www.tiktok.com/@${username}/video/${publishId}`,
         isSimulated: false,
         message: `TikTokへの実動画アップロードが完了しました！（Publish ID: ${publishId}）`,
       };
