@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#FFE45C"/>
+      <stop offset="1" stop-color="#FFB627"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="translate(512 512) scale(0.9) translate(-512 -512)">
+    <!-- スピード線 -->
+    <g stroke="#1E1B2E" stroke-width="14" stroke-linecap="round" opacity="0.85">
+      <line x1="150" y1="560" x2="250" y2="460"/>
+      <line x1="215" y1="640" x2="285" y2="570"/>
+      <line x1="700" y1="880" x2="800" y2="780"/>
+    </g>
+    <!-- 急上昇トレンド矢印 -->
+    <g transform="rotate(-45 512 512)">
+      <rect x="70" y="462" width="760" height="100" rx="18" fill="#FF4D2E" stroke="#1E1B2E" stroke-width="16"/>
+      <polygon points="790,350 975,512 790,674" fill="#FF4D2E" stroke="#1E1B2E" stroke-width="16" stroke-linejoin="round"/>
+    </g>
+    <!-- ぶら下がる足 -->
+    <g stroke="#1E1B2E" stroke-width="22" stroke-linecap="round" fill="none">
+      <path d="M480 862 Q 468 915 430 940"/>
+      <path d="M582 862 Q 605 915 590 955"/>
+    </g>
+    <!-- 腕（矢印によじ登る） -->
+    <g stroke="#1E1B2E" stroke-width="22" stroke-linecap="round" fill="none">
+      <path d="M412 705 Q 365 670 385 632"/>
+      <path d="M628 650 Q 650 540 588 446"/>
+    </g>
+    <!-- 体 -->
+    <circle cx="530" cy="740" r="135" fill="#FFFFFF" stroke="#1E1B2E" stroke-width="16"/>
+    <!-- 手（矢印をつかむ） -->
+    <circle cx="385" cy="628" r="28" fill="#FFFFFF" stroke="#1E1B2E" stroke-width="12"/>
+    <circle cx="586" cy="440" r="28" fill="#FFFFFF" stroke="#1E1B2E" stroke-width="12"/>
+    <!-- ＞＜ の目 -->
+    <g stroke="#1E1B2E" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <polyline points="462,695 500,718 462,741"/>
+      <polyline points="598,695 560,718 598,741"/>
+    </g>
+    <!-- 食いしばった歯 -->
+    <rect x="487" y="768" width="86" height="40" rx="12" fill="#FFFFFF" stroke="#1E1B2E" stroke-width="12"/>
+    <g stroke="#1E1B2E" stroke-width="7">
+      <line x1="487" y1="788" x2="573" y2="788"/>
+      <line x1="516" y1="768" x2="516" y2="808"/>
+      <line x1="544" y1="768" x2="544" y2="808"/>
+    </g>
+    <!-- ほっぺ -->
+    <ellipse cx="445" cy="770" rx="24" ry="14" fill="#FF8A80"/>
+    <ellipse cx="615" cy="770" rx="24" ry="14" fill="#FF8A80"/>
+    <!-- 汗 -->
+    <g fill="#5BC8FF" stroke="#1E1B2E" stroke-width="10" stroke-linejoin="round">
+      <path d="M695 560 C 678 592 670 615 687 631 C 705 644 728 628 723 605 C 719 586 706 573 695 560 Z"/>
+      <path d="M700 690 C 735 690 762 700 763 724 C 763 748 738 755 724 743 C 712 733 709 713 700 690 Z"/>
+      <path d="M345 760 C 330 785 325 800 338 812 C 352 822 368 810 365 793 C 363 780 353 770 345 760 Z"/>
+    </g>
+  </g>
+</svg>
