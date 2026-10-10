@@ -18,6 +18,7 @@ import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 import { saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
+import { postChat, postSample, saveWorkshop, startWorkshop, workshopBusy } from '@/lib/services/workshopService';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -297,6 +298,54 @@ export async function deleteTemplate(templateId: string): Promise<ActionState> {
   if (inUse > 0) return fail(`${inUse} 件のアカウントの既定になっています。先にアカウントの既定を変えてください`);
   // 依頼・企画からの参照は外れる（依頼には名前と本文の写しが残る）
   await prisma.structureTemplate.delete({ where: { id: templateId } });
+  revalidatePath('/', 'layout');
+  redirect('/templates');
+}
+
+// ---------- 構成案を AI と相談して作る ----------
+
+export async function startTemplateWorkshop(baseTemplateId: string | null) {
+  const channel = await getCurrentChannel();
+  if (!channel) throw new Error('アカウントがありません');
+  const workshop = await startWorkshop(channel.id, baseTemplateId);
+  redirect(`/templates/workshop/${workshop.id}`);
+}
+
+export async function sendWorkshopChat(workshopId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const text = String(formData.get('text') ?? '').trim().slice(0, 2000);
+  if (!text) return fail('相談したいことを入力してください');
+  if (await workshopBusy(workshopId)) return fail('AI が答えている途中です。少し待ってください');
+  await postChat(workshopId, text);
+  return done('送りました');
+}
+
+export async function requestWorkshopSample(workshopId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const topic = (String(formData.get('topicText') ?? '').trim() || String(formData.get('topic') ?? '').trim()).slice(0, 200);
+  if (!topic) return fail('試作の話題を選ぶか入力してください');
+  if (await workshopBusy(workshopId)) return fail('AI が答えている途中です。少し待ってください');
+  await postSample(workshopId, topic);
+  return done('試作を頼みました（30秒ほどかかります）');
+}
+
+export async function saveWorkshopDraft(workshopId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = templateFields(formData);
+  const error = validateTemplate(f);
+  if (error) return fail(error);
+  await prisma.templateWorkshop.update({ where: { id: workshopId }, data: { ...f, description: f.description || null } });
+  return done('下書きを保存しました（次の相談・試作から使われます）');
+}
+
+export async function saveWorkshopAsTemplate(workshopId: string, overwrite: boolean): Promise<ActionState> {
+  const w = await prisma.templateWorkshop.findUnique({ where: { id: workshopId } });
+  if (!w) return fail('相談が見つかりません');
+  const error = validateTemplate({ name: w.name, description: w.description ?? '', body: w.body });
+  if (error) return fail(error);
+  await saveWorkshop(workshopId, overwrite);
+  return done(overwrite ? '元の構成案を上書きしました' : '新しい構成案として保存しました');
+}
+
+export async function deleteWorkshop(workshopId: string): Promise<ActionState> {
+  await prisma.templateWorkshop.delete({ where: { id: workshopId } });
   revalidatePath('/', 'layout');
   redirect('/templates');
 }

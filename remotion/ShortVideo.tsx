@@ -51,7 +51,12 @@ const Background: React.FC = () => (
   <AbsoluteFill style={{ background: `linear-gradient(180deg, ${COLOR.primarySoft} 0%, ${COLOR.bg} 35%, ${COLOR.bg} 100%)` }} />
 );
 
-// 1行分のマスコット。音声の大きさから口の開きを決める
+// 1行分のマスコット。音声の大きさから口の開きを決める（音声のない試作プレビューでは口を閉じたまま）
+const SilentMascot: React.FC<{ mood: Mood; globalFrom: number }> = ({ mood, globalFrom }) => {
+  const frame = useCurrentFrame();
+  return <Mascot mood={mood} mouth={0} frame={globalFrom + frame} enterFrame={frame} size={MASCOT_SIZE} />;
+};
+
 const LineMascot: React.FC<{ audioSrc: string; mood: Mood; globalFrom: number }> = ({ audioSrc, mood, globalFrom }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -138,14 +143,18 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({ title, brandName, handle
       {/* 行ごと: 音声・効果音・字幕・マスコット */}
       {lines.map((line, i) => (
         <Sequence key={i} from={starts[i]} durationInFrames={line.durationInFrames} layout="none">
-          <Audio src={staticFile(line.audioSrc)} />
-          {i > 0 && <Audio src={staticFile(line.scene ? SE.whoosh : SE.pop)} volume={line.scene ? 0.35 : 0.25} />}
+          {line.audioSrc && <Audio src={staticFile(line.audioSrc)} />}
+          {line.audioSrc && i > 0 && <Audio src={staticFile(line.scene ? SE.whoosh : SE.pop)} volume={line.scene ? 0.35 : 0.25} />}
           <div style={{ position: 'absolute', left: 0, right: 0, top: CAPTION_Y, height: CAPTION_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Caption text={line.caption} emphasis={line.emphasis} />
           </div>
           {starts[i] < outroFrom && (
             <div style={{ position: 'absolute', left: MASCOT_X, top: MASCOT_Y }}>
-              <LineMascot audioSrc={line.audioSrc} mood={moods[i]} globalFrom={starts[i]} />
+              {line.audioSrc ? (
+                <LineMascot audioSrc={line.audioSrc} mood={moods[i]} globalFrom={starts[i]} />
+              ) : (
+                <SilentMascot mood={moods[i]} globalFrom={starts[i]} />
+              )}
             </div>
           )}
         </Sequence>

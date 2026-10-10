@@ -35,7 +35,7 @@ export const MOODS: Mood[] = ['panic', 'surprised', 'happy', 'think', 'nod'];
 // 台本1行 = 読み上げ1回 = 字幕1枚。scene を省略した行は直前の場面を引き継ぐ
 export type ShortVideoLine = {
   caption: string;
-  audioSrc: string; // 公開ディレクトリ（remotion/public/ + ナレーション）からの相対パス
+  audioSrc?: string; // 公開ディレクトリ（remotion/public/ + ナレーション）からの相対パス。省略すると音なし（ブラウザでの試作プレビュー）
   durationInFrames: number;
   emphasis?: string[]; // 字幕の中で強調する語
   scene?: Scene;

@@ -1,17 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import type { Mood, Scene, ShortVideoProps } from '../remotion/types';
+import type { ShortVideoProps } from '../remotion/types';
+import type { ScriptLine } from '../src/lib/script';
 import { DATA_DIR, projectWorkDir, videoRelPath, thumbRelPath } from '../src/lib/storage';
 import { createTts } from './tts';
 
-export interface ScriptLine {
-  text: string; // 読み上げる文（読みを整えるためにカタカナ表記にしてよい）
-  caption?: string; // 画面に出す字幕（省略時は text）
-  emphasis?: string[]; // 字幕の中で強調する語
-  scene?: Scene; // この行から切り替える場面（省略時は直前の場面を引き継ぐ）
-  mood?: Mood; // マスコットの表情（省略時は直前の行を引き継ぐ）
-}
+export type { ScriptLine } from '../src/lib/script';
 
 const FPS = 30;
 // 行と行の間の無音

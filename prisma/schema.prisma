@@ -31,6 +31,7 @@ model Account {
   trendResearches     TrendResearch[]
   agentKnowledges     AgentKnowledge[]
   agentJobs           AgentJob[]
+  templateWorkshops   TemplateWorkshop[]
   defaultTemplate     StructureTemplate?   @relation(fields: [defaultTemplateId], references: [id], onDelete: SetNull)
 }
 
@@ -224,7 +225,43 @@ model StructureTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  accounts Account[]
-  projects Project[]
-  jobs     AgentJob[]
+  accounts  Account[]
+  projects  Project[]
+  jobs      AgentJob[]
+  workshops TemplateWorkshop[]
+}
+
+// 13. 構成案を AI と相談しながら作る場（管理画面の「構成案」→「AI と相談して作る」）
+// 下書き（name / description / body）を会話と試作で少しずつ直し、納得したら構成案として保存する
+model TemplateWorkshop {
+  id              String   @id @default(cuid())
+  accountId       String // 相談の前提にするアカウント（コンセプト・視聴者・話し方）
+  baseTemplateId  String? // 直す元の構成案（新しく作る場合は null）。保存時に上書きできる
+  name            String // 下書きの名前
+  description     String? // 下書きの説明
+  body            String // 下書きの構成の指示
+  savedTemplateId String? // 保存先の構成案（保存したら記録する）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  account      Account                   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  baseTemplate StructureTemplate?        @relation(fields: [baseTemplateId], references: [id], onDelete: SetNull)
+  messages     TemplateWorkshopMessage[]
+}
+
+// 相談の1発言。AI の発言は作成時 pending で、別プロセス（agent/workshop-runner.ts）が中身を埋める
+model TemplateWorkshopMessage {
+  id           String   @id @default(cuid())
+  workshopId   String
+  role         String // "user" | "assistant"
+  kind         String // "chat"（相談）| "sample"（試作）
+  content      String   @default("") // 発言の本文（試作では AI のひとこと）
+  proposedBody String? // AI が提案した構成の指示の全文（下書きに反映済み）
+  sampleTopic  String? // 試作の話題
+  sampleJson   String? // 試作の台本 { title, lines }（ブラウザで映像プレビューする）
+  status       String   @default("done") // "pending" | "done" | "failed"
+  error        String?
+  createdAt    DateTime @default(now())
+
+  workshop TemplateWorkshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
 }

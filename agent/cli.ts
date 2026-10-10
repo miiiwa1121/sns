@@ -10,7 +10,8 @@ import { extractYouTubeVideoId, publishProject, recordManualPublish, PLATFORMS }
 import { analyzeProject, parsePlatformMetrics, recordMetrics } from '../src/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '../src/lib/analytics/youtubeMetrics';
 import { produceShort, ScriptLine } from './produce';
-import { MOODS, SCENE_TYPES, Scene } from '../remotion/types';
+import { Scene } from '../remotion/types';
+import { validateScriptLines } from '../src/lib/script';
 import { nextAction } from '../src/lib/workflow';
 import { projectWorkDir, resolveMediaPath } from '../src/lib/storage';
 import { execFileSync } from 'child_process';
@@ -161,20 +162,8 @@ function validateProjectSpec(raw: unknown): ProjectSpec {
   const s = raw as ProjectSpec;
   if (!s || typeof s.title !== 'string' || !s.title) throw new UsageError('title は必須です');
   if (typeof s.concept !== 'string' || !s.concept) throw new UsageError('concept は必須です');
-  if (!Array.isArray(s.lines) || s.lines.length === 0 || s.lines.length > 30) {
-    throw new UsageError('lines は1〜30行で指定してください');
-  }
-  for (const [i, l] of s.lines.entries()) {
-    if (!l || typeof l.text !== 'string' || !l.text.trim()) throw new UsageError(`lines[${i}].text が空です`);
-    if (l.caption !== undefined && typeof l.caption !== 'string') throw new UsageError(`lines[${i}].caption は文字列です`);
-    if (l.emphasis !== undefined && !(Array.isArray(l.emphasis) && l.emphasis.every((e) => typeof e === 'string'))) {
-      throw new UsageError(`lines[${i}].emphasis は文字列の配列です`);
-    }
-    if (l.mood !== undefined && !MOODS.includes(l.mood)) throw new UsageError(`lines[${i}].mood は ${MOODS.join(' / ')} のいずれかです`);
-    if (l.scene !== undefined && !(l.scene && SCENE_TYPES.includes(l.scene.type))) {
-      throw new UsageError(`lines[${i}].scene.type は ${SCENE_TYPES.join(' / ')} のいずれかです`);
-    }
-  }
+  const lineError = validateScriptLines(s.lines);
+  if (lineError) throw new UsageError(lineError);
   if (!s.publish || typeof s.publish !== 'object') throw new UsageError('publish は必須です');
   const ytTitle = s.publish.youtube?.title ?? s.title;
   if (ytTitle.length > 100) throw new UsageError(`YouTube タイトルは100文字以内です（${ytTitle.length}文字）`);

@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getCurrentChannel } from '@/lib/channel';
 import { buildJobPrompt } from '../../../../agent/job-prompt';
-import { deleteTemplate, updateTemplate } from '../../actions';
+import { deleteTemplate, startTemplateWorkshop, updateTemplate } from '../../actions';
 import { ActionButton } from '../../projects/[id]/client';
 import { TemplateForm } from '../TemplateForm';
 
@@ -32,7 +32,12 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
   return (
     <div className="page">
       <Link href="/templates" className="row muted" style={{ gap: 6 }}><ArrowLeft size={16} />構成案一覧</Link>
-      <h1>{template.name}</h1>
+      <div className="row between" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <h1>{template.name}</h1>
+        <form action={startTemplateWorkshop.bind(null, template.id)}>
+          <button className="btn primary">AI と相談して改善する</button>
+        </form>
+      </div>
       <p className="muted">
         既定にしているアカウント: {template.accounts.length > 0 ? template.accounts.map((a) => a.name).join('、') : 'なし'} ・ この構成案で作った企画 {template._count.projects} 件
       </p>

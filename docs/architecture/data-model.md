@@ -138,7 +138,15 @@ YouTube向けの横型マスター動画。
 
 `AgentJob`（依頼）には `templateId` に加えて、依頼した時点の `templateName` / `templateBody`（写し）を保存する。構成案をあとで編集・削除しても、どの内容で作ったかが分かるようにするため。実行時の指示書もこの写しから作る。
 
-### 11. `AppSetting` (サービス全体の設定)
+### 11. `TemplateWorkshop` / `TemplateWorkshopMessage` (構成案の相談)
+構成案を AI と相談しながら作る場。`TemplateWorkshop` は下書き（`name` / `description` / `body`）と、前提にするアカウント、元にした構成案（`baseTemplateId`）、保存先（`savedTemplateId`）を持つ。
+`TemplateWorkshopMessage` は1発言。
+- `role`: `user` | `assistant`、`kind`: `chat`（相談）| `sample`（試作）
+- `status`: AI の発言は `pending` で作り、`agent/workshop-runner.ts` が `done` / `failed` にする
+- `proposedBody`: AI が出した構成の指示の修正案（下書きに反映済み）
+- `sampleTopic` / `sampleJson`: 試作の話題と台本 `{ title, lines }`
+
+### 12. `AppSetting` (サービス全体の設定)
 1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
 - `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）
