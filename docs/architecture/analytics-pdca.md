@@ -28,7 +28,7 @@ graph TD
 | **diagnosePerformance** | `src/lib/agents/performanceDiagnosis.ts` | 実測値から計算できる事実だけで診断文と知見を作る純粋関数（画面側の表示にも使う） |
 | **CriticAgent** | `src/lib/agents/criticAgent.ts` | `diagnosePerformance` の呼び出しと、知見の `AgentKnowledge` への保存 |
 | **Analytics API** | `src/app/api/analytics/route.ts` | アナリティクス指標のDB永続化および、CriticAIが抽出したナレッジの `AgentKnowledge` 保存処理 |
-| **AnalyticsView** | `src/components/AnalyticsView.tsx` | 指標カード、プラットフォーム別比較、要因分析レポート、ナレッジベース一覧の統合表示 |
+| **管理画面** | `src/app/projects/[id]/page.tsx`, `src/app/insights/page.tsx` | 企画ごとの数字の入力（保存すると自動で分析・知見化）、YouTube の自動取得、動画ごとの数字と知見の一覧 |
 | **AgentKnowledge DB** | `prisma/schema.prisma` (SQLite) | アカウントごとに完全分離された学習ルール永続化テーブル |
 
 ---

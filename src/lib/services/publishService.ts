@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { MultiPlatformPublisher, DispatchAllParams } from '@/lib/publishers';
-import { safeJson } from '@/lib/projectMapper';
+import { safeJson } from '@/lib/json';
 import { PlatformType } from '@/lib/types';
 
 export const PLATFORMS: PlatformType[] = ['youtube', 'tiktok', 'instagram', 'x'];
@@ -31,11 +31,12 @@ export type PublishOutcome =
 export async function publishProject(projectId: string, options: PublishOptions = {}): Promise<PublishOutcome> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { shortClips: true, publishLogs: true },
+    include: { shortClips: true, publishLogs: true, account: { include: { platformConnections: true } } },
   });
   if (!project) {
     return { ok: false, httpStatus: 404, error: '指定されたプロジェクトが見つかりません' };
   }
+  const ytConnection = project.account.platformConnections.find((c) => c.platform === 'youtube');
 
   // 1. 配信対象: 承認済み（readyToPublish）かつレンダリング済みのショート
   const clip = project.shortClips.find((c) => c.readyToPublish && c.renderedFilePath);
@@ -64,6 +65,8 @@ export async function publishProject(projectId: string, options: PublishOptions 
   const params: DispatchAllParams = { videoFilePath };
   if (targets.includes('youtube')) {
     params.youtube = {
+      accountSlug: project.account.slug,
+      expectedChannelId: youtubeChannelOf(ytConnection?.apiConfig),
       title: ytLog?.title || project.title,
       description: ytLog?.caption || project.concept,
       tags: safeJson<string[]>(ytLog?.tagsJson, []),
@@ -157,4 +160,11 @@ export function extractYouTubeVideoId(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * アカウントに登録した YouTube チャンネル（PlatformConnection.apiConfig の channelId）
+ */
+export function youtubeChannelOf(apiConfig: string | null | undefined): string | null {
+  return safeJson<{ channelId?: string }>(apiConfig, {}).channelId ?? null;
 }

@@ -44,7 +44,7 @@ sequenceDiagram
 | **`src/app/api/cron/autonomous-cycle/route.ts`** | 定期巡回または手動トリガーを受け、リサーチから学習までの一連のパイプラインを非同期バッチ実行するコアAPI。 |
 | **`src/lib/publishers/index.ts`** | YouTube, TikTok, Instagram, X の全パブリッシャーを統括し、並列配信を実行。 |
 | **`src/lib/agents/criticAgent.ts`** | 投稿動画の分析からチャンネル固有ルールを抽出し、`AgentKnowledge` テーブルへ蓄積。 |
-| **`src/app/page.tsx`** | ヘッダーの「Auto-Pilot」スイッチ。現状は「未実装」と通知するだけで、API は呼ばない（API はトークン必須のため、ブラウザから呼ばない設計）。 |
+| 管理画面 | 2026-10-10 の作り直しで Auto-Pilot スイッチを撤去した（未実装のため。シンプル is best）。画面からの動画づくりの依頼は `docs/requirements/dashboard-ui.md` の段階2で扱う。 |
 
 ---
 

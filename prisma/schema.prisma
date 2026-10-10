@@ -29,6 +29,7 @@ model Account {
   projects            Project[]
   trendResearches     TrendResearch[]
   agentKnowledges     AgentKnowledge[]
+  agentJobs           AgentJob[]
 }
 
 // 2. SNS連携情報 (YouTube, TikTok, Instagram, X)
@@ -82,6 +83,7 @@ model Project {
   shortClips    ShortClip[]
   publishLogs   PublishLog[]
   analytics     AnalyticsMetric[]
+  agentJobs     AgentJob[]
 }
 
 // 5. 長尺動画マスター構成・台本
@@ -174,4 +176,21 @@ model AgentKnowledge {
   updatedAt       DateTime @updatedAt
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// 10. 動画づくりの依頼（管理画面から AI エージェントに依頼する）
+model AgentJob {
+  id         String    @id @default(cuid())
+  accountId  String
+  provider   String // "claude-code" | "antigravity"
+  theme      String? // 依頼のテーマ（空ならおまかせ）
+  status     String    @default("running") // "running" | "succeeded" | "failed" | "canceled"
+  projectId  String? // エージェントが作った企画（project:create --job で紐づく）
+  pid        Int? // 実行中のプロセス（Claude Code のみ）
+  error      String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }

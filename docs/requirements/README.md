@@ -5,3 +5,4 @@
 ## ドキュメント一覧
 
 - [decisions.md](decisions.md): プロジェクトの重要意思決定事項（アーキテクチャ・運用方針・データ保持方針など）
+- [dashboard-ui.md](dashboard-ui.md): 管理画面（ダッシュボード）UI の要件（要件定義中）

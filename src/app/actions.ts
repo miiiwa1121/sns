@@ -1,0 +1,216 @@
+'use server';
+
+// 管理画面からの操作。Server Actions は Next.js が Origin と Host を照合するため、別サイトからは呼べない。
+// 開発サーバーは 127.0.0.1 にのみバインドしている（ログイン機能は持たない）。
+
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { spawn } from 'child_process';
+import { CHANNEL_COOKIE, getCurrentChannel } from '@/lib/channel';
+import { PLATFORM_LABEL, PlatformType } from '@/lib/types';
+import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS } from '@/lib/services/publishService';
+import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
+import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
+
+export type ActionState = { ok: boolean; message: string } | null;
+
+const done = (message: string): ActionState => {
+  revalidatePath('/', 'layout');
+  return { ok: true, message };
+};
+const fail = (message: string): ActionState => ({ ok: false, message });
+
+// 絵コンテ（docs/videos/）に投稿 URL を反映する。CLI の storyboard を別プロセスで動かす（画面の応答は待たせない）
+function refreshStoryboard(projectId: string) {
+  spawn('npx', ['tsx', 'scripts/agent/cli.ts', 'storyboard', projectId], { cwd: process.cwd(), detached: true, stdio: 'ignore' }).unref();
+}
+
+function isPlatform(v: unknown): v is PlatformType {
+  return typeof v === 'string' && (PLATFORMS as string[]).includes(v);
+}
+
+export async function selectChannel(formData: FormData) {
+  const slug = String(formData.get('slug') ?? '');
+  const exists = await prisma.account.findUnique({ where: { slug } });
+  if (!exists) return;
+  (await cookies()).set(CHANNEL_COOKIE, slug, { sameSite: 'lax', httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
+  revalidatePath('/', 'layout');
+}
+
+export async function approveProject(projectId: string): Promise<ActionState> {
+  const clip = await prisma.shortClip.findFirst({ where: { projectId } });
+  if (!clip?.renderedFilePath) return fail('動画がまだできていません');
+  await prisma.shortClip.update({ where: { id: clip.id }, data: { readyToPublish: true } });
+  return done('承認しました');
+}
+
+export async function publishToYouTube(projectId: string): Promise<ActionState> {
+  const outcome = await publishProject(projectId, { platforms: ['youtube'], youtubePrivacy: 'private' });
+  if (!outcome.ok) return fail(outcome.error);
+  if (outcome.failed.length > 0) {
+    revalidatePath('/', 'layout');
+    return fail(outcome.failed.map((f) => f.message).join(' / '));
+  }
+  refreshStoryboard(projectId);
+  return done('YouTube に投稿しました（非公開）。YouTube Studio で「公開」に切り替えてください');
+}
+
+export async function recordPostUrl(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const platform = formData.get('platform');
+  const url = String(formData.get('url') ?? '').trim();
+  if (!isPlatform(platform)) return fail('媒体が不正です');
+  if (!/^https?:\/\//.test(url)) return fail('URL は https:// から始まる形で入力してください');
+  if (platform === 'youtube' && !extractYouTubeVideoId(url)) return fail('YouTube の動画 URL を入力してください');
+  await recordManualPublish(projectId, platform, url);
+  refreshStoryboard(projectId);
+  return done(`${PLATFORM_LABEL[platform]} の投稿を記録しました`);
+}
+
+function num(formData: FormData, key: string): number | null {
+  const raw = String(formData.get(key) ?? '').replace(/,/g, '').trim();
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+
+export async function saveMetrics(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const platform = formData.get('platform');
+  if (!isPlatform(platform)) return fail('媒体が不正です');
+  const views = num(formData, 'views');
+  const likes = num(formData, 'likes') ?? 0;
+  const comments = num(formData, 'comments') ?? 0;
+  const shares = num(formData, 'shares') ?? 0;
+  const retention = num(formData, 'retention');
+  if (views === null || [views, likes, comments, shares].some(Number.isNaN)) return fail('数字は0以上で入力してください（再生数は必須）');
+  if (retention !== null && (Number.isNaN(retention) || retention > 100)) return fail('視聴維持率は0〜100で入力してください（分からなければ空欄）');
+
+  const error = await recordMetrics(projectId, [{
+    platform,
+    views,
+    likes,
+    comments,
+    shares,
+    engagementRate: views > 0 ? Math.round(((likes + comments + shares) / views) * 1000) / 10 : 0,
+    retentionRate: retention,
+  }]);
+  if (error) return fail(error);
+  await analyzeProject(projectId, true);
+  return done(`${PLATFORM_LABEL[platform]} の数字を保存して分析しました`);
+}
+
+export async function collectYouTubeMetrics(projectId: string): Promise<ActionState> {
+  const log = await prisma.publishLog.findFirst({ where: { projectId, platform: 'youtube', status: 'published' }, include: { project: { include: { account: true } } } });
+  if (!log?.externalId || !log.publishedAt) return fail('YouTube の投稿がありません');
+  const result = await fetchYouTubeMetrics(log.project.account.slug, log.externalId, log.publishedAt);
+  if (!result.ok) return fail(result.error);
+  const error = await recordMetrics(projectId, [result.metric]);
+  if (error) return fail(error);
+  await analyzeProject(projectId, true);
+  return done(result.retentionAvailable ? 'YouTube の数字を取得して分析しました' : 'YouTube の数字を取得しました（視聴維持率はまだ反映されていません。1〜2日後にもう一度取得してください）');
+}
+
+export async function deleteDraftProject(projectId: string) {
+  const published = await prisma.publishLog.count({ where: { projectId, status: 'published' } });
+  if (published > 0) throw new Error('配信済みの企画は削除できません');
+  await prisma.project.delete({ where: { id: projectId } });
+  revalidatePath('/', 'layout');
+  redirect('/projects');
+}
+
+// ---------- 動画づくりの依頼（AgentJob） ----------
+
+const PROVIDERS = ['claude-code', 'antigravity'] as const;
+
+export async function createVideoJob(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const provider = formData.get('provider');
+  const theme = String(formData.get('theme') ?? '').trim().slice(0, 300) || null;
+  if (!PROVIDERS.includes(provider as (typeof PROVIDERS)[number])) return fail('AI を選んでください');
+  const channel = await getCurrentChannel();
+  if (!channel) return fail('チャンネルがありません');
+  // 同時に動かすのは1件まで（音声合成・レンダリングが重いため）
+  const running = await prisma.agentJob.findFirst({ where: { status: 'running' } });
+  if (running) return fail('作業中の依頼があります。終わってから依頼してください');
+
+  const job = await prisma.agentJob.create({ data: { accountId: channel.id, provider: String(provider), theme } });
+  // 依頼の実行は別プロセスで行う（画面の応答を待たせない）
+  const child = spawn('npx', ['tsx', 'scripts/agent/job-runner.ts', job.id], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
+  child.unref();
+  revalidatePath('/', 'layout');
+  redirect(`/jobs/${job.id}`);
+}
+
+export async function cancelJob(jobId: string): Promise<ActionState> {
+  const job = await prisma.agentJob.findUnique({ where: { id: jobId } });
+  if (!job || job.status !== 'running') return fail('作業中の依頼ではありません');
+  if (job.pid) {
+    try {
+      process.kill(job.pid);
+    } catch {
+      // すでに終了している
+    }
+  }
+  await prisma.agentJob.update({ where: { id: jobId }, data: { status: 'canceled', finishedAt: new Date(), pid: null } });
+  return done('依頼を中止しました');
+}
+
+// ---------- アカウント（チャンネル） ----------
+
+const SLUG = /^[a-z0-9][a-z0-9_-]{2,39}$/;
+
+function accountFields(formData: FormData) {
+  const get = (k: string) => String(formData.get(k) ?? '').trim();
+  return {
+    name: get('name'),
+    category: get('category') || 'AI・IT',
+    concept: get('concept'),
+    targetAudience: get('targetAudience'),
+    toneOfVoice: get('toneOfVoice'),
+    systemPromptRules: get('systemPromptRules') || null,
+    youtubeHandle: get('youtubeHandle'),
+  };
+}
+
+function validateAccount(f: ReturnType<typeof accountFields>): string | null {
+  if (!f.name || f.name.length > 50) return 'アカウント名は1〜50文字で入力してください';
+  if (!f.concept) return 'コンセプトを入力してください（台本づくりに使います）';
+  if (!f.targetAudience) return '想定する視聴者を入力してください';
+  if (!f.toneOfVoice) return '話し方を入力してください';
+  return null;
+}
+
+export async function createAccount(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = accountFields(formData);
+  const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
+  if (!SLUG.test(slug)) return fail('ID は半角英小文字・数字・-・_ の3〜40文字で入力してください');
+  const error = validateAccount(f);
+  if (error) return fail(error);
+  if (await prisma.account.findUnique({ where: { slug } })) return fail('この ID は使われています');
+
+  const { youtubeHandle, ...data } = f;
+  await prisma.account.create({
+    data: {
+      ...data,
+      slug,
+      platformConnections: {
+        create: PLATFORMS.map((platform) => ({ platform, handle: platform === 'youtube' ? youtubeHandle : '', isConnected: false })),
+      },
+    },
+  });
+  // 作ったアカウントに切り替える
+  (await cookies()).set(CHANNEL_COOKIE, slug, { sameSite: 'lax', httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
+  revalidatePath('/', 'layout');
+  redirect(`/accounts/${slug}`);
+}
+
+export async function updateAccount(accountId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = accountFields(formData);
+  const error = validateAccount(f);
+  if (error) return fail(error);
+  const { youtubeHandle, ...data } = f;
+  await prisma.account.update({ where: { id: accountId }, data });
+  const conn = await prisma.platformConnection.findFirst({ where: { accountId, platform: 'youtube' } });
+  if (conn) await prisma.platformConnection.update({ where: { id: conn.id }, data: { handle: youtubeHandle } });
+  return done('保存しました');
+}

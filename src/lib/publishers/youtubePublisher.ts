@@ -11,7 +11,14 @@ export const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/yt-analytics.readonly',
 ];
 
+// アカウントごとのリフレッシュトークンを入れる環境変数名（.env.local）。例: tuiteikunogaseiippai → YOUTUBE_REFRESH_TOKEN__TUITEIKUNOGASEIIPPAI
+export function youtubeTokenEnvName(accountSlug: string): string {
+  return `YOUTUBE_REFRESH_TOKEN__${accountSlug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+}
+
 export interface YouTubeUploadParams {
+  accountSlug: string;
+  expectedChannelId: string | null; // アカウントに登録したチャンネル。認証先と違えば投稿しない
   videoFilePath: string;
   title: string;
   description: string;
@@ -29,13 +36,13 @@ export interface YouTubeUploadResult {
 
 export class YouTubePublisher {
   /**
-   * 認証済み OAuth2 クライアントを取得（クライアントID・シークレット・リフレッシュトークンが揃っていなければ null）。
-   * リフレッシュトークンは scripts/agent/youtube-auth.ts で取得する。
+   * アカウントの認証済み OAuth2 クライアントを取得（クライアントID・シークレット・そのアカウントのリフレッシュトークンが揃っていなければ null）。
+   * リフレッシュトークンは `npm run youtube:auth -- <アカウントID>` で取得する。アカウントごとに別の YouTube チャンネルに対応する
    */
-  static getAuthorizedClient() {
+  static getAuthorizedClient(accountSlug: string) {
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-    const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN;
+    const refreshToken = process.env[youtubeTokenEnvName(accountSlug)];
 
     if (!clientId || !clientSecret || !refreshToken) {
       return null;
@@ -50,7 +57,7 @@ export class YouTubePublisher {
    * YouTubeへ動画をアップロード
    */
   static async uploadVideo(params: YouTubeUploadParams): Promise<YouTubeUploadResult> {
-    const { videoFilePath, title, description, tags, privacyStatus = 'private' } = params;
+    const { accountSlug, expectedChannelId, videoFilePath, title, description, tags, privacyStatus = 'private' } = params;
 
     // 1. 実動画ファイルの存在確認
     const fullPath = path.isAbsolute(videoFilePath)
@@ -64,14 +71,14 @@ export class YouTubePublisher {
       };
     }
 
-    const oauth2Client = this.getAuthorizedClient();
+    const oauth2Client = this.getAuthorizedClient(accountSlug);
 
     // 2. 認証情報が未設定の場合は投稿しない（偽のURLを返すと DB が「配信済み」になるため、成功扱いにしない）
     if (!oauth2Client) {
       return {
         success: false,
         isSimulated: true,
-        message: 'YouTube API認証情報（YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN）が未設定のため、投稿していません。',
+        message: `このアカウントの YouTube 連携が未設定のため、投稿していません（npm run youtube:auth -- ${accountSlug}）。`,
       };
     }
 
@@ -80,6 +87,16 @@ export class YouTubePublisher {
         version: 'v3',
         auth: oauth2Client,
       });
+
+      // 3. 認証先のチャンネルがアカウントに登録したチャンネルと同じか確認する（別チャンネルへの誤投稿を防ぐ）
+      const mine = await youtube.channels.list({ part: ['id'], mine: true });
+      const actualChannelId = mine.data.items?.[0]?.id ?? null;
+      if (!expectedChannelId || actualChannelId !== expectedChannelId) {
+        return {
+          success: false,
+          message: `認証先のチャンネル（${actualChannelId ?? '不明'}）がアカウントのチャンネル（${expectedChannelId ?? '未登録'}）と一致しないため、投稿していません。npm run youtube:auth -- ${accountSlug} をやり直してください。`,
+        };
+      }
 
       const media = {
         body: fs.createReadStream(fullPath),

@@ -1,0 +1,234 @@
+{
+  "trendId": "cmv0okzxr0001qcejbbucxjw1",
+  "title": "ChatGPTがGPT-6に。答えが「画面」になった",
+  "concept": "GPT-6 の目玉機能 Intelligent UI を「答えが文章じゃなく画面になる」の一言で伝え、無料でも今日から試せることを示す",
+  "lines": [
+    {
+      "text": "チャットジーピーティー、もう文章だけで答えなくなりました。",
+      "caption": "ChatGPT、もう\n文章だけで答えなくなった",
+      "emphasis": [
+        "文章だけ"
+      ],
+      "mood": "surprised",
+      "scene": {
+        "type": "hook",
+        "text": "ChatGPTが\n「画面」で答える",
+        "sub": "GPT-6 登場"
+      }
+    },
+    {
+      "text": "ジーピーティー・シックスが来て、10月8日から無料プランにも順次広がっています。",
+      "caption": "GPT-6が登場\n10/8から無料プランにも順次",
+      "emphasis": [
+        "無料プラン"
+      ],
+      "mood": "panic",
+      "scene": {
+        "type": "timeline",
+        "title": "GPT-6",
+        "steps": [
+          {
+            "label": "10/7",
+            "detail": "有料プラン"
+          },
+          {
+            "label": "10/8",
+            "detail": "無料プランにも"
+          }
+        ]
+      }
+    },
+    {
+      "text": "目玉は、インテリジェント・ユーアイという新機能。",
+      "caption": "目玉は新機能\n「Intelligent UI」",
+      "emphasis": [
+        "Intelligent UI"
+      ],
+      "mood": "think",
+      "scene": {
+        "type": "keyword",
+        "label": "目玉の新機能",
+        "text": "Intelligent UI"
+      }
+    },
+    {
+      "text": "ひとことで言うと、答えが文章じゃなくて、画面になります。",
+      "caption": "ひとことで言うと\n答えが「画面」になる",
+      "emphasis": [
+        "画面"
+      ],
+      "mood": "surprised",
+      "scene": {
+        "type": "compare",
+        "left": {
+          "label": "これまで",
+          "body": "長い文章で\n説明"
+        },
+        "right": {
+          "label": "GPT-6",
+          "body": "表・図・ツールで\n見せる"
+        }
+      }
+    },
+    {
+      "text": "たとえば、比較を頼むと、表で返ってきます。",
+      "caption": "比較を頼むと\n→ 表で返ってくる",
+      "emphasis": [
+        "表"
+      ],
+      "mood": "nod",
+      "scene": {
+        "type": "chat",
+        "user": "コーヒーと紅茶を比べて",
+        "reply": {
+          "type": "table",
+          "headers": [
+            "",
+            "コーヒー",
+            "紅茶"
+          ],
+          "rows": [
+            [
+              "カフェイン",
+              "多め",
+              "少なめ"
+            ],
+            [
+              "香り",
+              "香ばしい",
+              "華やか"
+            ],
+            [
+              "合う時間",
+              "朝・仕事中",
+              "午後・食後"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "text": "割り勘を頼むと、その場で割り勘ツールが出てきます。",
+      "caption": "割り勘を頼むと\n→ その場で割り勘ツール",
+      "emphasis": [
+        "割り勘ツール"
+      ],
+      "mood": "surprised",
+      "scene": {
+        "type": "chat",
+        "user": "4人で12000円を割り勘して",
+        "reply": {
+          "type": "bill",
+          "total": 12000,
+          "people": 4
+        }
+      }
+    },
+    {
+      "text": "計算機やゲームまで、会話の中で使えます。",
+      "caption": "計算機やゲームも\n会話の中で使える",
+      "emphasis": [
+        "会話の中"
+      ],
+      "mood": "happy",
+      "scene": {
+        "type": "chips",
+        "title": "会話の中で使える",
+        "items": [
+          "比較表",
+          "図",
+          "計算機",
+          "割り勘",
+          "ゲーム"
+        ]
+      }
+    },
+    {
+      "text": "どの形で見せるかは、エーアイが自分で選びます。",
+      "caption": "どう見せるかは\nAIが自分で選ぶ",
+      "emphasis": [
+        "AIが自分で"
+      ],
+      "mood": "nod",
+      "scene": {
+        "type": "select",
+        "title": "どう見せる？",
+        "options": [
+          "文章",
+          "表",
+          "図",
+          "ツール"
+        ]
+      }
+    },
+    {
+      "text": "だから使い方は、いつも通り質問するだけ。",
+      "caption": "使い方は\nいつも通り質問するだけ",
+      "emphasis": [
+        "いつも通り"
+      ],
+      "mood": "happy"
+    },
+    {
+      "text": "まずは次の飲み会の割り勘で、試してみてください。",
+      "caption": "まずは次の飲み会の\n割り勘で試してみて",
+      "emphasis": [
+        "割り勘"
+      ],
+      "mood": "happy",
+      "scene": {
+        "type": "keyword",
+        "label": "まずはここから",
+        "text": "次の飲み会の\n割り勘で"
+      }
+    },
+    {
+      "text": "以上、ついていくのが精一杯でした。",
+      "caption": "以上\nついていくのが精一杯でした",
+      "mood": "panic",
+      "scene": {
+        "type": "outro",
+        "text": "フォローして一緒についていこう"
+      }
+    }
+  ],
+  "publish": {
+    "youtube": {
+      "title": "ChatGPTがGPT-6に。答えが「画面」になる新機能が無料プランにも #Shorts",
+      "description": "ChatGPT が GPT-6 になり、新機能「Intelligent UI」が登場しました。\n質問に合わせて、表・図・計算機・割り勘ツールなどを会話の中に出してくれます。\n10/7 に有料プラン、10/8 から無料・Go プランにも順次展開。\n\n出典:\nOpenAI「GPT-6 and Intelligent UI for everyone」 https://openai.com/index/gpt-6-for-everyone/\nOpenAI ヘルプ「GPT-6 and other models in ChatGPT」 https://help.openai.com/en/articles/20001354-gpt-6-and-other-models-in-chatgpt\n\n#ChatGPT #GPT6 #AI #生成AI",
+      "tags": [
+        "ChatGPT",
+        "GPT-6",
+        "Intelligent UI",
+        "OpenAI",
+        "生成AI",
+        "AI",
+        "ついていくのが精一杯"
+      ]
+    },
+    "tiktok": {
+      "caption": "ChatGPTがGPT-6に。答えが文章じゃなく「画面」で返ってくるようになりました。無料プランにも順次展開中👀",
+      "tags": [
+        "ChatGPT",
+        "GPT6",
+        "AI",
+        "生成AI",
+        "AIツール"
+      ]
+    },
+    "instagram": {
+      "caption": "ChatGPTがGPT-6に📱\n新機能「Intelligent UI」で、表・図・計算機・割り勘ツールが会話の中に出てくるように。\n10/8から無料プランにも順次展開中。\n\n出典: OpenAI 公式発表",
+      "tags": [
+        "ChatGPT",
+        "GPT6",
+        "AI",
+        "生成AI",
+        "AIツール",
+        "ついていくのが精一杯"
+      ]
+    },
+    "x": {
+      "text": "ChatGPTがGPT-6に。\n新機能「Intelligent UI」で、答えが文章じゃなく表・図・割り勘ツールなどの“画面”で返ってくるように。10/8から無料プランにも順次展開中。\n\n出典: https://openai.com/index/gpt-6-for-everyone/"
+    }
+  }
+}

@@ -7,13 +7,13 @@ import { PlatformMetricRecord } from '@/lib/services/analyticsService';
  * - 再生数・高評価・コメント: YouTube Data API（videos.list statistics）。ほぼリアルタイム
  * - 平均視聴率・シェア: YouTube Analytics API。反映まで1〜2日かかるため、取れない間は null
  */
-export async function fetchYouTubeMetrics(videoId: string, publishedAt: Date): Promise<
+export async function fetchYouTubeMetrics(accountSlug: string, videoId: string, publishedAt: Date): Promise<
   | { ok: true; metric: PlatformMetricRecord; retentionAvailable: boolean }
   | { ok: false; error: string }
 > {
-  const auth = YouTubePublisher.getAuthorizedClient();
+  const auth = YouTubePublisher.getAuthorizedClient(accountSlug);
   if (!auth) {
-    return { ok: false, error: 'YouTube の認証情報（YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN）が未設定です' };
+    return { ok: false, error: `このアカウントの YouTube 連携が未設定です（npm run youtube:auth -- ${accountSlug}）` };
   }
 
   const youtube = google.youtube({ version: 'v3', auth });

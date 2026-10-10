@@ -7,6 +7,8 @@ import { XPublisher, XUploadResult } from './xPublisher';
 export interface DispatchAllParams {
   videoFilePath: string;
   youtube?: {
+    accountSlug: string;
+    expectedChannelId: string | null;
     title: string;
     description: string;
     tags: string[];

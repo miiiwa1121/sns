@@ -1,6 +1,6 @@
 import { PlatformType } from '@/lib/types';
 
-// クライアント（projectMapper）とサーバー（CriticAgent）の両方から使うため、prisma を import しない純粋関数として置く。
+// 画面（サーバーコンポーネント）と CriticAgent の両方から使うため、prisma を import しない純粋関数として置く。
 // 実測値から計算できる事実だけを文章化し、測っていない因果（「フックが効いた」等）は書かない。
 
 export interface PlatformMetricInput {

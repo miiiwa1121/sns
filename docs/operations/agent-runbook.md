@@ -9,7 +9,7 @@ Claude Code セッション（以下、エージェント）が「ついてい�
 ## 0. 前提
 
 - 作業はリポジトリ直下で行う。コマンドはすべて `npm run -s agent -- <command>`。
-- 必要なツール: `edge-tts`、`ffmpeg` / `ffprobe`、Google Chrome（レンダリングに使う）。
+- 必要なツール: VOICEVOX エンジン（`~/.local/share/voicevox/macos-arm64/`。[公式 GitHub](https://github.com/VOICEVOX/voicevox_engine/releases) の macos-arm64 版を 7-Zip で展開）、`ffmpeg` / `ffprobe`、Google Chrome（レンダリングに使う）。
 - YouTube 自動投稿の設定は [youtube-setup.md](youtube-setup.md)。未設定でも、投稿以外の工程は回せる。
 - 一時ファイル（リサーチや台本の JSON）は `out/agent/`（Git 管理外）に置く。
 
@@ -63,7 +63,13 @@ npm run -s agent -- knowledge
   "title": "画面上部に出るタイトル（短く）",
   "concept": "この動画の狙い",
   "lines": [
-    { "text": "読み上げる文", "caption": "字幕（省略時は text と同じ）" }
+    {
+      "text": "読み上げる文",
+      "caption": "字幕（省略時は text と同じ。\\n で改行）",
+      "emphasis": ["字幕の中で強調する語"],
+      "mood": "surprised",
+      "scene": { "type": "hook", "text": "冒頭の大きな文字", "sub": "バッジ" }
+    }
   ],
   "publish": {
     "youtube": { "title": "100文字以内 #Shorts", "description": "概要欄。出典URLを入れる", "tags": ["AI"] },
@@ -74,6 +80,9 @@ npm run -s agent -- knowledge
 }
 ```
 
+- `scene` の種類と項目、`mood` の種類は [video-template.md](../architecture/video-template.md#4-場面の種類srcremotiontypestsのscene) を参照。`scene` を省略した行は直前の場面を引き継ぐ。
+- 実例: [docs/videos/](../videos/README.md) の絵コンテ。
+
 ### 台本の書き方
 
 - **尺は 30〜50 秒**（読み上げ +10% 速で、1行あたり約2〜5秒、8〜14行が目安）。
@@ -81,7 +90,11 @@ npm run -s agent -- knowledge
 - 専門用語には、1行の比喩か言い換えを添える（アカウントのコンセプト）。
 - **事実は出典に書いてあることだけにする。** 推測で数字を作らない。
 - 読み間違えやすい語は `text` をカタカナにして、`caption` に正しい表記を書く（例: `"text": "ジーピーティー"`, `"caption": "GPT"`）。
-- 字幕は1行あたり全角30字程度まで。改行したい位置には `\n` を入れる。
+- 字幕は `\n` で区切った1行が全角13字程度までになるよう書く。文字サイズは一番長い行が1行に収まるよう自動で決まる（長すぎる行は小さくなる）。
+- 1行目は `hook` 場面で、手を止めさせる一言にする（「〇〇になりました」ではなく「〇〇、もう△△じゃない」など）。
+- 絵文字・スタンプは使わない。伝えたいことは UI 部品の場面（`chat` / `timeline` / `chips` / `select` / `compare`）で見せる。
+- 実際のサービス画面は使わない（`chat` は汎用の再現で「※イメージ」と表示される）。
+- 声はずんだもん（VOICEVOX）。**特定の企業・人物を応援・批判する言い回しはしない**（ずんだもんの利用規約の禁止事項）。事実の紹介に留める。
 - 最後の行は締めの一言にする。CTA（「フォローしてね」など）は入れても入れなくてもよい。
 
 ```bash
@@ -94,7 +107,12 @@ npm run -s agent -- project:create out/agent/project.json
 npm run -s agent -- produce <projectId>
 ```
 
-- 出力は `public/videos/<projectId>.mp4` と、確認用静止画 `out/agent/<projectId>/preview.png`。
+- 出力は次の3つ。
+  - 動画: `public/videos/<projectId>.mp4`
+  - 確認用静止画: `out/agent/<projectId>/preview.png`（字幕1行につき1コマを6列で並べた一覧）
+  - 絵コンテ: `docs/videos/<日付>-<projectId>.md`（構成の記録。配信後は URL も反映される）
+- 台本を直すときは `project:update <projectId> <file.json>` で差し替えて、`produce` し直す（配信前のみ）。
+- 声と速度は既定でずんだもん・1.15。VOICEVOX エンジンは `produce` が自動で起動・停止する。
 - **静止画を Read で必ず確認し、次の点を自分で点検する。**
   - 字幕のはみ出し
   - 不自然な改行

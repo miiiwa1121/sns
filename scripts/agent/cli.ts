@@ -4,15 +4,19 @@ import './env';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../../src/lib/prisma';
-import { safeJson } from '../../src/lib/projectMapper';
+import { safeJson } from '../../src/lib/json';
 import { PlatformType } from '../../src/lib/types';
 import { extractYouTubeVideoId, publishProject, recordManualPublish, PLATFORMS } from '../../src/lib/services/publishService';
 import { analyzeProject, parsePlatformMetrics, recordMetrics } from '../../src/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '../../src/lib/analytics/youtubeMetrics';
 import { produceShort, ScriptLine } from './produce';
+import { MOODS, SCENE_TYPES, Scene } from '../../src/remotion/types';
+import { nextAction } from '../../src/lib/workflow';
+import { execFileSync } from 'child_process';
 
-const DEFAULT_VOICE = 'ja-JP-NanamiNeural';
-const DEFAULT_RATE = '+10%';
+// 声の指定は scripts/agent/tts.ts を参照。AGENT_VOICE で上書きできる
+const DEFAULT_VOICE = process.env.AGENT_VOICE || 'voicevox:ずんだもん:ノーマル';
+const DEFAULT_SPEED = 1.15;
 
 // ---------- 引数 ----------
 
@@ -93,21 +97,23 @@ async function status(flags: Record<string, string | true>) {
     const logs = PLATFORMS.map((pf) => `${pf}:${p.publishLogs.find((l) => l.platform === pf)?.status ?? '-'}`).join(' ');
     console.log(`   ${p.id}  [${p.stage}]  ${p.title}`);
     console.log(`      動画: ${clip?.renderedFilePath ?? '未レンダリング'}  承認: ${clip?.readyToPublish ? '済' : '未'}  ${logs}  実測: ${p.analytics.length}媒体`);
-    console.log(`      次: ${nextAction(p, clip)}`);
+    console.log(`      次: ${nextActionHint(p)}`);
   }
 }
 
-function nextAction(
-  p: { id: string; stage: string; analytics: unknown[]; publishLogs: { status: string }[] },
-  clip?: { renderedFilePath: string | null; readyToPublish: boolean }
-): string {
-  if (!clip) return '台本が無い（project:create で作り直す）';
-  if (!clip.renderedFilePath) return `produce ${p.id}`;
-  if (!clip.readyToPublish) return `プレビューをユーザーに見せて承認を得る → approve ${p.id}`;
-  if (!p.publishLogs.some((l) => l.status === 'published')) return `publish ${p.id} --platforms youtube / export:manual ${p.id}`;
-  if (p.analytics.length === 0) return `metrics:collect ${p.id}（公開から1〜2日後）/ 手動投稿分は metrics:record`;
-  if (p.stage !== 'analyzed') return `analyze ${p.id} --save-knowledge`;
-  return '完了（実測値を更新したら analyze で再分析できる）';
+// 工程の判定は src/lib/workflow.ts（管理画面と共通）。CLI では対応するコマンドを添える
+function nextActionHint(p: Parameters<typeof nextAction>[0] & { id: string }): string {
+  const a = nextAction(p);
+  const owner = a.owner === 'you' ? '[ユーザー]' : a.owner === 'agent' ? '[エージェント]' : '';
+  const hint = [
+    `project:update ${p.id} <file.json>`,
+    `produce ${p.id}`,
+    `ユーザーに管理画面で確認・承認してもらう（http://127.0.0.1:3001/projects/${p.id}）`,
+    '管理画面で YouTube 投稿・投稿 URL の記録',
+    '管理画面で数字を入力（YouTube は自動取得可）',
+  ][a.step];
+  if (a.owner === 'done') return '完了';
+  return `${owner} ${a.label} → ${hint}${a.dueAt ? `（${a.dueAt.toLocaleString('ja-JP')} 以降）` : ''}`;
 }
 
 async function trendAdd(file: string, flags: Record<string, string | true>) {
@@ -160,6 +166,13 @@ function validateProjectSpec(raw: unknown): ProjectSpec {
   for (const [i, l] of s.lines.entries()) {
     if (!l || typeof l.text !== 'string' || !l.text.trim()) throw new UsageError(`lines[${i}].text が空です`);
     if (l.caption !== undefined && typeof l.caption !== 'string') throw new UsageError(`lines[${i}].caption は文字列です`);
+    if (l.emphasis !== undefined && !(Array.isArray(l.emphasis) && l.emphasis.every((e) => typeof e === 'string'))) {
+      throw new UsageError(`lines[${i}].emphasis は文字列の配列です`);
+    }
+    if (l.mood !== undefined && !MOODS.includes(l.mood)) throw new UsageError(`lines[${i}].mood は ${MOODS.join(' / ')} のいずれかです`);
+    if (l.scene !== undefined && !(l.scene && SCENE_TYPES.includes(l.scene.type))) {
+      throw new UsageError(`lines[${i}].scene.type は ${SCENE_TYPES.join(' / ')} のいずれかです`);
+    }
   }
   if (!s.publish || typeof s.publish !== 'object') throw new UsageError('publish は必須です');
   const ytTitle = s.publish.youtube?.title ?? s.title;
@@ -173,6 +186,10 @@ function validateProjectSpec(raw: unknown): ProjectSpec {
 
 async function projectCreate(file: string, flags: Record<string, string | true>) {
   const spec = validateProjectSpec(readJsonFile(file));
+  // 管理画面からの依頼（AgentJob）で作る場合は、依頼と企画を紐づける
+  const jobId = typeof flags.job === 'string' ? flags.job : process.env.AGENT_JOB_ID;
+  const job = jobId ? await prisma.agentJob.findUnique({ where: { id: jobId } }) : null;
+  if (jobId && !job) throw new UsageError(`依頼 ${jobId} が見つかりません`);
   const account = spec.trendId
     ? (await prisma.trendResearch.findUnique({ where: { id: spec.trendId }, include: { account: true } }))?.account
     : await resolveAccount(flags.account as string | undefined);
@@ -224,7 +241,48 @@ async function projectCreate(file: string, flags: Record<string, string | true>)
       },
     },
   });
+  if (job) await prisma.agentJob.update({ where: { id: job.id }, data: { projectId: project.id } });
   console.log(`✅ プロジェクトを作成しました: ${project.id}  ${project.title}`);
+  console.log(`   次: npm run agent -- produce ${project.id}`);
+}
+
+/**
+ * 未配信のプロジェクトの台本・投稿文を差し替える（作り直し用）。動画は produce で作り直す
+ */
+async function projectUpdate(projectId: string, file: string) {
+  const project = await findProject(projectId);
+  if (project.publishLogs.some((l) => l.status === 'published')) {
+    throw new UsageError('配信済みのプロジェクトは差し替えられません（新しく project:create する）');
+  }
+  const spec = validateProjectSpec(readJsonFile(file));
+  const clip = project.shortClips[0];
+  const tagsJson = (tags?: string[]) => (tags && tags.length > 0 ? JSON.stringify(tags) : null);
+  const withTags = (text: string | undefined, tags?: string[]) =>
+    [text, tags?.map((t) => `#${t}`).join(' ')].filter(Boolean).join('\n\n') || null;
+  const logData: Record<PlatformType, { title?: string | null; caption: string | null; tagsJson?: string | null }> = {
+    youtube: { title: spec.publish.youtube?.title ?? spec.title, caption: spec.publish.youtube?.description ?? null, tagsJson: tagsJson(spec.publish.youtube?.tags) },
+    tiktok: { caption: withTags(spec.publish.tiktok?.caption, spec.publish.tiktok?.tags), tagsJson: tagsJson(spec.publish.tiktok?.tags) },
+    instagram: { caption: withTags(spec.publish.instagram?.caption, spec.publish.instagram?.tags), tagsJson: tagsJson(spec.publish.instagram?.tags) },
+    x: { caption: spec.publish.x?.text ?? null },
+  };
+
+  await prisma.$transaction([
+    prisma.project.update({ where: { id: project.id }, data: { title: spec.title, concept: spec.concept, stage: 'production' } }),
+    prisma.shortClip.update({
+      where: { id: clip.id },
+      data: {
+        title: spec.title,
+        hookSentence: spec.lines[0].caption ?? spec.lines[0].text,
+        scriptJson: JSON.stringify(spec.lines),
+        renderedFilePath: null,
+        readyToPublish: false,
+      },
+    }),
+    ...project.publishLogs.map((l) =>
+      prisma.publishLog.update({ where: { id: l.id }, data: { ...logData[l.platform as PlatformType], status: 'draft', errorMessage: null } })
+    ),
+  ]);
+  console.log(`✅ 台本を差し替えました: ${project.id}  ${spec.title}`);
   console.log(`   次: npm run agent -- produce ${project.id}`);
 }
 
@@ -236,15 +294,29 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
 
   const handle = (await prisma.platformConnection.findFirst({ where: { accountId: project.accountId, platform: 'youtube' } }))?.handle || '';
   console.log(`🎬 制作: ${project.title}`);
-  const result = produceShort({
+  const speed = typeof flags.speed === 'string' ? Number(flags.speed) : DEFAULT_SPEED;
+  if (!Number.isFinite(speed) || speed < 0.5 || speed > 2) throw new UsageError('--speed は 0.5〜2.0 の数値です');
+  const result = await produceShort({
     projectId: project.id,
     title: project.title,
     brandName: project.account.name,
     handle,
     lines,
     voice: typeof flags.voice === 'string' ? flags.voice : DEFAULT_VOICE,
-    rate: typeof flags.rate === 'string' ? flags.rate : DEFAULT_RATE,
+    speed,
+    bgmSrc: typeof flags.bgm === 'string' ? flags.bgm : null,
   });
+
+  // 声のクレジット（VOICEVOX の利用規約で必要）を投稿文の末尾に入れる。X は文字数が厳しいので動画内の表記に任せる
+  if (result.credit) {
+    for (const log of project.publishLogs.filter((l) => l.platform !== 'x')) {
+      if (log.caption?.includes(result.credit)) continue;
+      await prisma.publishLog.update({
+        where: { id: log.id },
+        data: { caption: `${log.caption ?? ''}\n\n音声: ${result.credit}`.trim() },
+      });
+    }
+  }
 
   await prisma.$transaction([
     prisma.shortClip.update({
@@ -262,7 +334,109 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
 
   console.log(`✅ 動画: public/videos/${result.videoFileName}（${result.durationSec.toFixed(1)}秒）`);
   console.log(`   確認用静止画: ${path.relative(process.cwd(), result.previewPath)}`);
+  console.log(`   絵コンテ: ${await writeStoryboard(project.id)}`);
   if (result.durationSec > 60) console.log('   ⚠️ 60秒を超えています。Instagram / 一部の Shorts 扱いで不利になる可能性があります');
+}
+
+// ---------- 絵コンテ（構成の記録） ----------
+
+const STORYBOARD_DIR = path.resolve('docs/videos');
+
+function describeScene(scene?: Scene): string {
+  if (!scene) return '（前の場面を継続）';
+  const oneLine = (t: string) => t.replace(/\n/g, ' ');
+  switch (scene.type) {
+    case 'hook': return `フック「${oneLine(scene.text)}」${scene.sub ? `＋バッジ「${scene.sub}」` : ''}`;
+    case 'keyword': return `キーワード「${oneLine(scene.text)}」${scene.label ? `（${scene.label}）` : ''}`;
+    case 'compare': return `比較「${scene.left.label}: ${oneLine(scene.left.body)}」→「${scene.right.label}: ${oneLine(scene.right.body)}」`;
+    case 'chat': return `チャット再現「${scene.user}」→ ${{ text: '文章', table: '表', bill: '割り勘ツール', chart: 'グラフ', calculator: '計算機' }[scene.reply.type]}`;
+    case 'timeline': return `ステップ ${scene.steps.map((st) => `${st.label}${st.detail ? `(${st.detail})` : ''}`).join(' → ')}`;
+    case 'chips': return `チップ ${scene.items.join(' / ')}`;
+    case 'select': return `選択UI ${scene.options.join(' / ')}`;
+    case 'outro': return `締め${scene.text ? `「${scene.text}」` : ''}`;
+  }
+}
+
+const fmtSec = (frames: number) => `${(frames / 30).toFixed(1)}s`;
+const cell = (t: string) => t.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
+
+/**
+ * 動画の構成を docs/videos/ に記録する（produce の後に自動で呼ぶ）
+ */
+async function writeStoryboard(projectId: string): Promise<string> {
+  const project = await findProject(projectId);
+  const clip = project.shortClips[0];
+  const propsPath = path.resolve('out/agent', project.id, 'props.json');
+  if (!clip?.renderedFilePath || !fs.existsSync(propsPath)) throw new UsageError('未レンダリングです（先に produce）');
+  const props = JSON.parse(fs.readFileSync(propsPath, 'utf-8')) as { lines: { durationInFrames: number }[]; credit?: string | null };
+  const script = safeJson<ScriptLine[]>(clip.scriptJson, []);
+
+  const date = project.createdAt.toLocaleDateString('sv-SE').replace(/-/g, '');
+  const baseName = `${date}-${project.id}`;
+  const imageRel = `img/${baseName}.jpg`;
+  const previewPng = path.resolve('out/agent', project.id, 'preview.png');
+  if (fs.existsSync(previewPng)) {
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', previewPng, '-vf', 'scale=1620:-1', '-q:v', '4', path.join(STORYBOARD_DIR, imageRel)]);
+  }
+
+  let start = 0;
+  const rows = script.map((line, i) => {
+    const dur = props.lines[i]?.durationInFrames ?? 0;
+    const row = `| ${i + 1} | ${fmtSec(start)}–${fmtSec(start + dur)} | ${cell(describeScene(line.scene))} | ${line.mood ?? '（継続）'} | ${cell(line.caption ?? line.text)} | ${cell(line.text)} |`;
+    start += dur;
+    return row;
+  });
+  const sources = safeJson<{ title: string; url: string }[]>(project.trendResearch?.sourcesJson, []);
+  const logs = PLATFORMS.map((pf) => {
+    const l = project.publishLogs.find((x) => x.platform === pf);
+    return `| ${pf} | ${l?.status ?? '-'} | ${l?.postUrl ?? ''} |`;
+  });
+
+  const md = [
+    `# 絵コンテ: ${project.title}`,
+    '',
+    `- プロジェクトID: \`${project.id}\``,
+    `- 状態: ${project.stage}`,
+    `- 尺: ${(start / 30).toFixed(1)} 秒（${script.length} 行）`,
+    `- 動画ファイル: \`public/videos/${clip.renderedFilePath}\`（Git 管理外）`,
+    `- 声: ${props.credit ?? '-'}`,
+    `- 狙い: ${project.concept}`,
+    '',
+    '## 構成',
+    '',
+    '| # | 時間 | 場面 | 表情 | 字幕 | 読み上げ |',
+    '| :-- | :-- | :-- | :-- | :-- | :-- |',
+    ...rows,
+    '',
+    '## 全行のコマ',
+    '',
+    fs.existsSync(path.join(STORYBOARD_DIR, imageRel)) ? `![全行のコマ](${imageRel})` : '（画像なし）',
+    '',
+    '## 出典',
+    '',
+    ...(sources.length > 0 ? sources.map((src) => `- [${src.title}](${src.url})`) : ['（なし）']),
+    '',
+    '## 配信',
+    '',
+    '| 媒体 | 状態 | URL |',
+    '| :-- | :-- | :-- |',
+    ...logs,
+    '',
+  ].join('\n');
+  const mdPath = path.join(STORYBOARD_DIR, `${baseName}.md`);
+  fs.writeFileSync(mdPath, md);
+
+  // 目次（README）に未登録なら追記する
+  const readme = path.join(STORYBOARD_DIR, 'README.md');
+  const index = fs.readFileSync(readme, 'utf-8');
+  if (!index.includes(`(${baseName}.md)`)) {
+    fs.writeFileSync(readme, `${index.trimEnd()}\n- [${baseName}.md](${baseName}.md): ${project.title}\n`);
+  }
+  return path.relative(process.cwd(), mdPath);
+}
+
+async function storyboard(projectId: string) {
+  console.log(`✅ 絵コンテを書き出しました: ${await writeStoryboard(projectId)}`);
 }
 
 async function approve(projectId: string) {
@@ -294,6 +468,7 @@ async function publish(projectId: string, flags: Record<string, string | true>) 
   }
   for (const f of outcome.failed) console.log(`❌ ${f.platform}: ${f.message}`);
   if (outcome.succeeded.length === 0) process.exitCode = 1;
+  else console.log(`   絵コンテ更新: ${await writeStoryboard(projectId)}`);
 }
 
 async function exportManual(projectId: string) {
@@ -327,6 +502,7 @@ async function publishRecord(projectId: string, platform: string, url: string) {
   await findProject(projectId);
   await recordManualPublish(projectId, platform, url);
   console.log(`✅ ${platform} の投稿を記録しました: ${url}`);
+  console.log(`   絵コンテ更新: ${await writeStoryboard(projectId)}`);
 }
 
 async function metricsCollect(projectId: string) {
@@ -335,7 +511,7 @@ async function metricsCollect(projectId: string) {
   if (!yt?.externalId || !yt.publishedAt) {
     throw new UsageError('投稿済みの YouTube 動画がありません（手動投稿なら publish:record で URL を記録。他媒体は metrics:record で手入力）');
   }
-  const result = await fetchYouTubeMetrics(yt.externalId, yt.publishedAt);
+  const result = await fetchYouTubeMetrics(project.account.slug, yt.externalId, yt.publishedAt);
   if (!result.ok) throw new UsageError(result.error);
   const recordError = await recordMetrics(project.id, [result.metric]);
   if (recordError) throw new UsageError(recordError);
@@ -381,7 +557,10 @@ const USAGE = `使い方: npm run agent -- <command>
   status                                   現在の状態と各プロジェクトの次の手順
   trend:add <file.json>                    リサーチを登録（出典必須）
   project:create <file.json>               台本・投稿文からプロジェクトを作成
-  produce <projectId> [--voice] [--rate]   音声合成 + レンダリング + 確認用静止画
+  project:update <projectId> <file.json>   未配信プロジェクトの台本・投稿文を差し替え
+  produce <projectId> [--voice voicevox:<キャラ>:<スタイル>] [--speed 1.15] [--bgm bgm/<file>]
+                                           音声合成 + レンダリング + 確認用静止画
+  storyboard <projectId>                   絵コンテを docs/videos/ に書き出す（produce で自動実行）
   approve <projectId>                      公開承認（ユーザーの OK を得てから）
   publish <projectId> --platforms youtube [--youtube-privacy private|unlisted|public]
   export:manual <projectId>                手動投稿用に動画とキャプションを書き出す
@@ -395,12 +574,20 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { positional: [a, b, c], flags } = parseArgs(rest);
 
+  // 管理画面からの依頼で AI が動いているときは、人の判断が必要な操作を拒否する（指示書に加えた二重の安全装置）
+  const HUMAN_ONLY = ['approve', 'publish', 'publish:record', 'metrics:record', 'metrics:collect', 'analyze'];
+  if (process.env.AGENT_JOB_ID && HUMAN_ONLY.includes(command)) {
+    throw new UsageError(`「${command}」は人が管理画面で行う操作です（依頼で動くエージェントは実行できません）`);
+  }
+
   switch (command) {
     case 'status': return status(flags);
     case 'trend:add': return trendAdd(need(a, 'file.json'), flags);
     case 'project:create': return projectCreate(need(a, 'file.json'), flags);
+    case 'project:update': return projectUpdate(need(a, 'projectId'), need(b, 'file.json'));
     case 'produce': return produce(need(a, 'projectId'), flags);
     case 'approve': return approve(need(a, 'projectId'));
+    case 'storyboard': return storyboard(need(a, 'projectId'));
     case 'publish': return publish(need(a, 'projectId'), flags);
     case 'export:manual': return exportManual(need(a, 'projectId'));
     case 'publish:record': return publishRecord(need(a, 'projectId'), need(b, 'platform'), need(c, 'url'));

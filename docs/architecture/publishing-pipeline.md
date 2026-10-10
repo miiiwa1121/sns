@@ -40,8 +40,8 @@ flowchart TD
 | **`src/lib/publishers/tiktokPublisher.ts`** | TikTok Content Posting API (Direct Post) 経由で動画バイナリのチャンクアップロードを行うエンジン。 |
 | **`src/lib/publishers/instagramPublisher.ts`** | Instagram Graph API (Reels Publishing) 経由でコンテナ作成およびメディア公開を行うエンジン。 |
 | **`src/lib/publishers/xPublisher.ts`** | **未実装**。OAuth 1.0a 署名付き chunked media upload + `POST /2/tweets` が必要。実装されるまで常に失敗（`success: false`）を返す。 |
-| **`src/components/ApprovalView.tsx`** | 各SNS向けのタイトル・キャプション・タグ編集、動画ファイル保存、ワンクリッククリップボードコピー、一括配信トリガーUI。 |
-| **`src/components/SettingsModal.tsx`** | プラットフォーム別認証情報の入力モーダル。**現状は入力値を保存しない**（クレデンシャルは `.env.local` で設定する）。 |
+| **`src/app/projects/[id]/page.tsx`** | 管理画面の企画詳細。承認、YouTube 投稿ボタン、各媒体の投稿文のコピー・動画ダウンロード・投稿 URL の記録。操作は `src/app/actions.ts`（Server Actions）。 |
+| 認証情報 | `.env.local` で設定する（画面からは設定しない）。YouTube は `docs/operations/youtube-setup.md`。 |
 
 ---
 
