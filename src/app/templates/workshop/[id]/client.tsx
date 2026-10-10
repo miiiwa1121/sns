@@ -80,7 +80,6 @@ export function WorkshopHeader({
   name,
   busy,
   baseTemplateName,
-  savedTemplateId,
   rename,
   sample,
   stop,
@@ -91,7 +90,6 @@ export function WorkshopHeader({
   name: string;
   busy: boolean;
   baseTemplateName: string | null;
-  savedTemplateId: string | null;
   rename: (name: string) => Promise<ActionState>;
   sample: () => Promise<ActionState>;
   stop: () => Promise<ActionState>;
@@ -103,15 +101,11 @@ export function WorkshopHeader({
   return (
     <header className="ws-header">
       <Link href="/templates" className="btn" aria-label="構成案一覧に戻る" title="構成案一覧に戻る">
-        <ArrowLeft size={16} />
+        <ArrowLeft size={14} />
         戻る
       </Link>
       <div className="ws-title">
         <NameInput name={name} rename={rename} onResult={setResult} />
-        <span className="muted">
-          {baseTemplateName ? `元にした構成案: ${baseTemplateName}` : '新しい構成案'}
-          {savedTemplateId && <> ・ <Link href={`/templates/${savedTemplateId}`}>保存した構成案を開く</Link></>}
-        </span>
       </div>
       <div className="ws-actions">
         {result && <span className={`notice ${result.ok ? 'ok' : 'ng'}`}>{result.message}</span>}
@@ -300,11 +294,10 @@ export function ChatForm({ action, disabled }: { action: Action; disabled: boole
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
           }}
         />
-        <button className="send-btn" disabled={pending || disabled} aria-label="送信" title="送信（Ctrl / ⌘ + Enter）">
+        <button className="send-btn" disabled={pending || disabled} aria-label="送信" title="送信（Ctrl / ⌘ + Enter でも送れます）">
           <Send size={18} />
         </button>
       </div>
-      <span className="muted">Ctrl / ⌘ + Enter で送信。「試作して」と書けば、直した構成案で続けて試作します</span>
       {state && !state.ok && <p className="notice ng">{state.message}</p>}
     </form>
   );

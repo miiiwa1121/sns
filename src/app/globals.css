@@ -250,16 +250,17 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .sheet-thumb { width: 27px; height: 48px; object-fit: cover; border-radius: 4px; display: block; }
 
 /* 構成案の相談（ヘッダー + 左: プロンプト / 中央: 試作 / 右: 相談）。画面の高さいっぱいに使い、各列は中でスクロールする */
-.main:has(.full-page) { padding-bottom: 16px; }
-.page.full-page { max-width: none; gap: 12px; height: calc(100dvh - 96px); min-height: 560px; }
+.main:has(.full-page) { padding: 64px 12px 12px 260px; }
+.main.wide:has(.full-page) { padding-left: 12px; }
+.page.full-page { max-width: none; gap: 8px; height: calc(100dvh - 76px); min-height: 520px; }
 .ws-header {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; flex-shrink: 0;
-  padding: 10px 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
 }
-.ws-header > .btn, .ws-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ws-header > .btn, .ws-actions .btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 13px; }
 .ws-title { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
 .ws-name {
-  font: inherit; font-size: 20px; font-weight: 800; color: var(--text); background: transparent;
+  font: inherit; font-size: 16px; font-weight: 800; color: var(--text); background: transparent;
   border: 1px solid transparent; border-radius: 8px; padding: 2px 6px; margin-left: -7px; width: 100%; max-width: 520px;
 }
 .ws-name:hover { border-color: var(--border); }
@@ -273,7 +274,7 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .ws-handle:hover::after, body.resizing .ws-handle::after { background: var(--accent); }
 body.resizing { cursor: col-resize; user-select: none; }
 /* 各列のカードは列の高さいっぱい。中身は内側でスクロールする */
-.ws-fill-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.ws-fill-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 12px; }
 
 .ws-prompt { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 .ws-prompt-tabs { align-self: flex-start; }
@@ -299,13 +300,16 @@ body.resizing { cursor: col-resize; user-select: none; }
 .bubble.user { align-self: flex-end; background: var(--accent-soft); }
 .bubble.assistant { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
 .chat-input { position: relative; }
-.chat-input textarea { padding-right: 52px; resize: none; }
+.chat-input textarea { display: block; padding-right: 52px; resize: none; }
 .send-btn {
-  position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--on-accent);
 }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+@media (max-width: 860px) {
+  .main:has(.full-page), .main.wide:has(.full-page) { padding: 64px 8px 12px 8px; }
+}
 @media (max-width: 1100px) {
   .page.full-page { height: auto; }
   .ws-cols { display: flex; flex-direction: column; gap: 16px; }

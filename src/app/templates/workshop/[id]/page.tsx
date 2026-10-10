@@ -63,7 +63,6 @@ export default async function WorkshopPage({
         name={workshop.name}
         busy={busy}
         baseTemplateName={workshop.baseTemplate?.name ?? null}
-        savedTemplateId={workshop.savedTemplateId}
         rename={renameWorkshop.bind(null, workshop.id)}
         sample={requestWorkshopSample.bind(null, workshop.id)}
         stop={stopWorkshopAction.bind(null, workshop.id)}
@@ -75,7 +74,6 @@ export default async function WorkshopPage({
       <ResizableColumns
         left={
           <section className="card ws-fill-card">
-            <h2 style={{ margin: 0 }}>AI に渡すプロンプト</h2>
             <PromptViewer
               tabs={[
                 {
@@ -113,7 +111,6 @@ export default async function WorkshopPage({
         }
         right={
           <section className="card ws-fill-card">
-            <h2 style={{ margin: 0 }}>相談</h2>
             {/* 発言の件数と状態が変わったら（返事が届いたら）下までスクロールする */}
             <ChatScroll count={workshop.messages.map((m) => `${m.id}:${m.status}`).join(',')}>
               {workshop.messages.length === 0 && (
