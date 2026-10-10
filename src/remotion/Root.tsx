@@ -1,6 +1,7 @@
 import React from 'react';
 import { CalculateMetadataFunction, Composition } from 'remotion';
-import { ShortVideo, ShortVideoProps, TAIL_FRAMES } from './ShortVideo';
+import { ShortVideo, TAIL_FRAMES } from './ShortVideo';
+import { ShortVideoProps } from './types';
 
 const FPS = 30;
 
@@ -25,6 +26,8 @@ export const RemotionRoot: React.FC = () => {
         brandName: 'ついていくのが精一杯',
         handle: '@tuiteikunogaseiippai',
         lines: [],
+        bgmSrc: null,
+        credit: null,
       }}
     />
   );
