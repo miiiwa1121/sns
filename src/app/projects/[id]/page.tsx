@@ -17,7 +17,7 @@ import {
 } from '@/app/actions';
 import { OwnerBadge, StepBar } from '../../ui';
 import { ActionButton, ActionForm, CopyButton } from './client';
-import { mediaUrlPath, thumbRelPath } from '@/lib/storage';
+import { mediaExists, mediaUrlPath, thumbRelPath } from '@/lib/storage';
 
 type ScriptLine = { text: string; caption?: string };
 
@@ -71,6 +71,8 @@ function VideoSection({ project, approved }: { project: ProjectWithAll; approved
       <h2>1. 動画を確認する</h2>
       {!clip?.renderedFilePath ? (
         <p className="lead">動画はまだできていません。エージェントが作るのを待ってください。</p>
+      ) : !mediaExists(clip.renderedFilePath) ? (
+        <p className="lead">動画ファイルは整理（clean）で削除済みです。</p>
       ) : (
         <div className="row" style={{ alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
           <video src={mediaUrlPath(clip.renderedFilePath)} poster={mediaUrlPath(thumbRelPath(clip.renderedFilePath))} controls preload="metadata" />

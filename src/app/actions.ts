@@ -7,7 +7,9 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import fs from 'fs';
 import { spawn } from 'child_process';
+import { projectDir } from '@/lib/storage';
 import { CHANNEL_COOKIE, getCurrentChannel } from '@/lib/channel';
 import { PLATFORM_LABEL, PlatformType } from '@/lib/types';
 import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS } from '@/lib/services/publishService';
@@ -115,6 +117,8 @@ export async function deleteDraftProject(projectId: string) {
   const published = await prisma.publishLog.count({ where: { projectId, status: 'published' } });
   if (published > 0) throw new Error('配信済みの企画は削除できません');
   await prisma.project.delete({ where: { id: projectId } });
+  // 企画のファイル（動画・作業ファイル）もフォルダごと消す。DB に存在した ID のときだけここに来る
+  fs.rmSync(projectDir(projectId), { recursive: true, force: true });
   revalidatePath('/', 'layout');
   redirect('/projects');
 }

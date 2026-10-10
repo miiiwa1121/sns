@@ -35,7 +35,7 @@ export const MOODS: Mood[] = ['panic', 'surprised', 'happy', 'think', 'nod'];
 // 台本1行 = 読み上げ1回 = 字幕1枚。scene を省略した行は直前の場面を引き継ぐ
 export type ShortVideoLine = {
   caption: string;
-  audioSrc: string; // public/ からの相対パス
+  audioSrc: string; // 公開ディレクトリ（remotion/public/ + ナレーション）からの相対パス
   durationInFrames: number;
   emphasis?: string[]; // 字幕の中で強調する語
   scene?: Scene;
@@ -47,6 +47,6 @@ export type ShortVideoProps = {
   brandName: string;
   handle: string;
   lines: ShortVideoLine[];
-  bgmSrc?: string | null; // public/ からの相対パス。無ければ BGM なし
+  bgmSrc?: string | null; // remotion/public/ からの相対パス。無ければ BGM なし
   credit?: string | null; // 画面下に小さく出すクレジット（例: "VOICEVOX:ずんだもん"）
 };

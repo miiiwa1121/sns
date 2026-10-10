@@ -1,5 +1,6 @@
 // 生成物（動画・音声・作業ファイル・ジョブのログ）の保管場所に関する定義。data/ 配下は git 管理外。
 // DB の ShortClip.renderedFilePath には、data/ からの相対パス（例: projects/<id>/video.mp4）を保存する。
+import fs from 'fs';
 import path from 'path';
 
 export const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -48,6 +49,12 @@ export function resolveMediaPath(rel: string): string | null {
   if (!isServableMedia(rel)) return null;
   const full = path.resolve(DATA_DIR, rel);
   return full.startsWith(DATA_DIR + path.sep) ? full : null;
+}
+
+/** 配信対象のファイルが data/ に実在するか（clean で消した後など） */
+export function mediaExists(rel: string): boolean {
+  const full = resolveMediaPath(rel);
+  return full !== null && fs.existsSync(full);
 }
 
 /** 管理画面・外部サービスから動画を取るための URL パス（/api/media/[...path] が返す） */

@@ -2,7 +2,7 @@ import React from 'react';
 import { COLOR } from '../theme';
 import { Mood } from '../types';
 
-// アイコン（public/brand/icon.svg）の白い丸キャラ。表情（mood）と口の開き（mouth: 0〜1）を受け取って描く
+// アイコン（remotion/public/brand/icon.svg）の白い丸キャラ。表情（mood）と口の開き（mouth: 0〜1）を受け取って描く
 export const Mascot: React.FC<{
   mood: Mood;
   mouth: number;

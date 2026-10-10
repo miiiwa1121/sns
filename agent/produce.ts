@@ -26,7 +26,7 @@ export interface ProduceInput {
   lines: ScriptLine[];
   voice: string; // tts.ts の声の指定（例: "voicevox:ずんだもん:ノーマル"）
   speed: number; // 読み上げ速度（1.0 = 標準）
-  bgmSrc: string | null; // public/ からの相対パス
+  bgmSrc: string | null; // remotion/public/ からの相対パス
 }
 
 export interface ProduceResult {
@@ -42,15 +42,15 @@ export interface ProduceResult {
  */
 export async function produceShort(input: ProduceInput): Promise<ProduceResult> {
   const workDir = projectWorkDir(input.projectId);
-  // Remotion に渡す素材置き場。固定素材（public/ の brand・se・BGM）と、この動画のナレーション音声を1か所に集める
+  // Remotion に渡す素材置き場。固定素材（remotion/public/ の brand・se・BGM）と、この動画のナレーション音声を1か所に集める
   const stageDir = path.join(workDir, 'stage');
   const audioDirRel = 'audio';
   const audioDir = path.join(stageDir, audioDirRel);
-  if (input.bgmSrc && !fs.existsSync(path.resolve('public', input.bgmSrc))) {
-    throw new Error(`BGM ファイルが見つかりません: public/${input.bgmSrc}`);
+  if (input.bgmSrc && !fs.existsSync(path.resolve('remotion/public', input.bgmSrc))) {
+    throw new Error(`BGM ファイルが見つかりません: remotion/public/${input.bgmSrc}`);
   }
   fs.rmSync(stageDir, { recursive: true, force: true });
-  fs.cpSync(path.resolve('public'), stageDir, { recursive: true });
+  fs.cpSync(path.resolve('remotion/public'), stageDir, { recursive: true });
   fs.mkdirSync(audioDir, { recursive: true });
 
   // 1. 行ごとに音声合成し、長さを測る

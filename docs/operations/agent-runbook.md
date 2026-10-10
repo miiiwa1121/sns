@@ -193,6 +193,20 @@ npm run -s agent -- analyze <projectId> --save-knowledge
 
 ---
 
+## 9. 掃除（古い生成物の削除）
+
+`data/` は放っておくと増え続ける。人が定期的に実行する（依頼で動くエージェントは実行できない）。
+
+```bash
+npm run -s agent -- clean                         # 確認だけ（消さない）
+npm run -s agent -- clean --days 30 --apply       # 実行
+npm run -s agent -- clean --with-video --apply    # 動画とサムネも消す
+```
+
+- 対象: YouTube 公開から `--days` 日（既定30）たった企画の `work/`（作業ファイル）と、終了から同じ日数たった依頼ジョブの作業フォルダ。`--with-video` を付けると `video.mp4`・`thumb.jpg` も消す。
+- DB の行は消さない。動画を消した企画は、画面に「動画ファイルは整理（clean）で削除済み」と出る。
+- 画面の「この企画を削除する」（未投稿の企画のみ）は、DB の行と `data/projects/<id>/` をまとめて消す。
+
 ## 人手が必要な箇所（2026-10-09 時点）
 
 | 工程 | 人手が要る理由 |

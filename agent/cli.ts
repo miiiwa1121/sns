@@ -12,7 +12,7 @@ import { fetchYouTubeMetrics } from '../src/lib/analytics/youtubeMetrics';
 import { produceShort, ScriptLine } from './produce';
 import { MOODS, SCENE_TYPES, Scene } from '../remotion/types';
 import { nextAction } from '../src/lib/workflow';
-import { projectWorkDir, resolveMediaPath } from '../src/lib/storage';
+import { jobDir, projectDir, projectWorkDir, resolveMediaPath } from '../src/lib/storage';
 import { execFileSync } from 'child_process';
 
 // 声の指定は agent/tts.ts を参照。AGENT_VOICE で上書きできる
@@ -552,6 +552,56 @@ async function knowledge(flags: Record<string, string | true>) {
   for (const k of items) console.log(`[${k.category}] ${k.ruleText}（信頼度 ${Math.round(k.confidenceScore * 100)}%）`);
 }
 
+// ---------- 掃除（古い生成物の削除） ----------
+
+function dirSize(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir, { withFileTypes: true }).reduce((sum, e) => {
+    const p = path.join(dir, e.name);
+    return sum + (e.isDirectory() ? dirSize(p) : fs.statSync(p).size);
+  }, 0);
+}
+const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+
+/**
+ * 古い生成物を削除する。既定は確認だけ（--apply を付けると実際に消す）。
+ *   - YouTube 公開から --days 日（既定30）たった企画の作業ファイル（work/）。--with-video で動画とサムネも消す。
+ *   - 終了してから --days 日たった依頼ジョブの作業フォルダ。
+ * DB の行は消さない（動画を消した企画は画面に「削除済み」と出る）。
+ */
+async function clean(flags: Record<string, string | true>) {
+  const days = typeof flags.days === 'string' ? Number(flags.days) : 30;
+  if (!Number.isFinite(days) || days < 1) throw new UsageError('--days は 1 以上の数値です');
+  const apply = flags.apply === true;
+  const withVideo = flags['with-video'] === true;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  console.log(`🧹 ${apply ? '削除' : '確認（--apply で実際に削除）'}: ${days}日より前に公開・終了したもの${withVideo ? '（動画も対象）' : ''}`);
+
+  let total = 0;
+  const remove = (label: string, target: string) => {
+    if (!fs.existsSync(target)) return;
+    const size = dirSize(target);
+    total += size;
+    console.log(`  ${label}  ${path.relative(process.cwd(), target)}  ${mb(size)}`);
+    if (apply) fs.rmSync(target, { recursive: true, force: true });
+  };
+
+  const projects = await prisma.project.findMany({
+    where: { publishLogs: { some: { platform: 'youtube', status: 'published', publishedAt: { lt: cutoff } } } },
+  });
+  for (const p of projects) {
+    remove(`📁 ${p.title.slice(0, 20)}`, projectWorkDir(p.id));
+    if (withVideo) {
+      remove('🎞️  動画', path.join(projectDir(p.id), 'video.mp4'));
+      remove('🖼️  サムネ', path.join(projectDir(p.id), 'thumb.jpg'));
+    }
+  }
+  const jobs = await prisma.agentJob.findMany({ where: { status: { not: 'running' }, finishedAt: { lt: cutoff } } });
+  for (const j of jobs) remove('🗂️  依頼', jobDir(j.id));
+
+  console.log(total === 0 ? '対象はありません' : `${apply ? '削除しました' : '削除される量'}: ${mb(total)}`);
+}
+
 // ---------- エントリポイント ----------
 
 const USAGE = `使い方: npm run agent -- <command>
@@ -569,14 +619,16 @@ const USAGE = `使い方: npm run agent -- <command>
   metrics:collect <projectId>              YouTube の実測値を API で取得
   metrics:record <projectId> <file.json>   実測値を手入力
   analyze <projectId> [--save-knowledge]   実測値の分析（知見の保存）
-  knowledge                                蓄積された知見（次の台本に反映する）`;
+  knowledge                                蓄積された知見（次の台本に反映する）
+  clean [--days 30] [--with-video] [--apply]
+                                           古い生成物の削除（既定は確認のみ。--with-video で動画も、--apply で実行）`;
 
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { positional: [a, b, c], flags } = parseArgs(rest);
 
   // 管理画面からの依頼で AI が動いているときは、人の判断が必要な操作を拒否する（指示書に加えた二重の安全装置）
-  const HUMAN_ONLY = ['approve', 'publish', 'publish:record', 'metrics:record', 'metrics:collect', 'analyze'];
+  const HUMAN_ONLY = ['approve', 'publish', 'publish:record', 'metrics:record', 'metrics:collect', 'analyze', 'clean'];
   if (process.env.AGENT_JOB_ID && HUMAN_ONLY.includes(command)) {
     throw new UsageError(`「${command}」は人が管理画面で行う操作です（依頼で動くエージェントは実行できません）`);
   }
@@ -596,6 +648,7 @@ async function main() {
     case 'metrics:record': return metricsRecord(need(a, 'projectId'), need(b, 'file.json'));
     case 'analyze': return analyze(need(a, 'projectId'), flags);
     case 'knowledge': return knowledge(flags);
+    case 'clean': return clean(flags);
     default:
       console.log(USAGE);
       if (command) process.exitCode = 1;

@@ -65,7 +65,7 @@ docs は**日本語**で、実務レベル一式を揃える（要件定義 / �
 
 ## ディレクトリ構成
 
-`src/`（Next.js）、`agent/`（エージェント CLI）、`remotion/`（動画テンプレート）、`public/`（固定素材のみ）、`data/`（生成物。git 管理外）。生成物は `data/projects/<id>/` に企画ごとにまとまる。詳細は [docs/architecture/directory-structure.md](docs/architecture/directory-structure.md)。
+`src/`（Next.js）、`agent/`（エージェント CLI）、`remotion/`（動画テンプレート）、`remotion/public/`（動画の固定素材）、`data/`（生成物。git 管理外）。生成物は `data/projects/<id>/` に企画ごとにまとまる。詳細は [docs/architecture/directory-structure.md](docs/architecture/directory-structure.md)。
 
 ## 主要コマンド
 

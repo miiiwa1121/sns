@@ -24,10 +24,10 @@
 
 | ファイル | 用途 |
 | :--- | :--- |
-| `public/brand/icon.svg` | マスターデータ（編集はこれを直す） |
-| `public/brand/icon-1024.png` | YouTube / TikTok / Instagram のアップロード用 |
-| `public/brand/icon-512.png` | 汎用 |
-| `public/brand/icon-400.png` | X のアップロード用（推奨 400×400） |
+| `remotion/public/brand/icon.svg` | マスターデータ（編集はこれを直す） |
+| `remotion/public/brand/icon-1024.png` | YouTube / TikTok / Instagram のアップロード用 |
+| `remotion/public/brand/icon-512.png` | 汎用 |
+| `remotion/public/brand/icon-400.png` | X のアップロード用（推奨 400×400） |
 
 ## PNG の再書き出し
 
@@ -35,7 +35,7 @@ ImageMagick 等は未導入のため、Google Chrome のヘッドレスモード
 
 ```bash
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
-  --window-size=1024,1024 --screenshot=$PWD/public/brand/icon-1024.png file://$PWD/public/brand/icon.svg
+  --window-size=1024,1024 --screenshot=$PWD/remotion/public/brand/icon-1024.png file://$PWD/remotion/public/brand/icon.svg
 ```
 
 512 / 400 サイズは `<img src="icon.svg" width="512">` だけを置いたHTMLを同じ要領でスクリーンショットする。
