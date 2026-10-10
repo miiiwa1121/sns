@@ -156,6 +156,8 @@ YouTube向けの横型マスター動画。
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）
 - `cleanupIncludeVideo`: 作業ファイルに加えて動画・サムネも消すか（既定 false）
 - `lastCleanupAt` / `lastCleanupBytes`: 最後に整理した日時と、消した量（バイト）
+- `aiJobProvider` / `aiJobModel`、`aiWorkshopProvider` / `aiWorkshopModel`、`aiEditProvider` / `aiEditModel`: 用途ごとに使う AI とモデル（「AI 連携」画面。モデルが空ならその AI の既定）
+- `claudeBinPath` / `antigravityBinPath`: Claude Code・Antigravity の置き場所（空なら既定の場所）
 
 ---
 

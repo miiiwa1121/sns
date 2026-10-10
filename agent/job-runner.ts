@@ -3,17 +3,15 @@
 //   antigravity: Antigravity IDE のチャットに指示書を送る（実行は IDE 上。完了は企画の状態で判定する）
 import './env';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { prisma } from '../src/lib/prisma';
 import { jobDir, DATA_DIR } from '../src/lib/storage';
 import { runAutoCleanup } from '../src/lib/services/cleanupService';
+import { loadAiSettings } from '../src/lib/ai/providers';
 import { DEFAULT_TEMPLATE } from '../src/lib/services/templateService';
 import { buildJobPrompt } from './job-prompt';
 
-const CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
-const ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || path.join(os.homedir(), '.antigravity-ide/antigravity-ide/bin/antigravity-ide');
 
 // 依頼で動くエージェントに許すコマンド（承認・投稿・数字の記録は含めない）
 const ALLOWED_AGENT_COMMANDS = ['status', 'knowledge', 'trend:add', 'project:create', 'project:update', 'produce', 'storyboard'];
@@ -45,6 +43,10 @@ async function main() {
   // 場面の型定義（作業フォルダの外のソースは読めないため、参照用にコピーする）
   fs.copyFileSync(path.join(repoDir, 'remotion/types.ts'), path.join(workDir, 'scene-types.ts'));
 
+  // AI の場所とモデルは、管理画面の「AI 連携」の設定に従う
+  const ai = await loadAiSettings();
+  const ANTIGRAVITY_BIN = ai.antigravityBin;
+  const CLAUDE_BIN = ai.claudeBin;
   if (job.provider === 'antigravity') {
     if (!fs.existsSync(ANTIGRAVITY_BIN)) return finish(job.id, 'failed', `Antigravity が見つかりません: ${ANTIGRAVITY_BIN}`);
     // IDE のチャットに送るだけで、ここではすぐ終わる。進み具合は IDE で見て、完了は企画ができたかで判定する
@@ -79,6 +81,8 @@ async function main() {
       '--allowedTools', ...allowedTools,
       '--add-dir', dataDir,
       '--no-session-persistence',
+      // 「AI 連携」で依頼に割り当てたモデル（空なら Claude Code の既定）
+      ...(ai.job.provider === 'claude-code' && ai.job.model ? ['--model', ai.job.model] : []),
     ],
     // AGENT_JOB_ID があると、CLI 側でも承認・投稿などを拒否する
     { cwd: workDir, env: { ...process.env, AGENT_JOB_ID: job.id }, stdio: ['ignore', 'pipe', 'pipe'] }

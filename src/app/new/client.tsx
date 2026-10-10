@@ -6,7 +6,17 @@ import { createVideoJob } from '../actions';
 
 type TemplateOption = { id: string; name: string };
 
-export function JobForm({ disabled, templates, defaultTemplateId }: { disabled: boolean; templates: TemplateOption[]; defaultTemplateId: string }) {
+export function JobForm({
+  disabled,
+  templates,
+  defaultTemplateId,
+  defaultProvider,
+}: {
+  disabled: boolean;
+  templates: TemplateOption[];
+  defaultTemplateId: string;
+  defaultProvider: 'claude-code' | 'antigravity'; // 「AI 連携」で依頼の既定にした AI
+}) {
   const [state, run, pending] = useActionState(createVideoJob, null);
   return (
     <form action={run} className="card stack" style={{ gap: 16 }}>
@@ -26,10 +36,10 @@ export function JobForm({ disabled, templates, defaultTemplateId }: { disabled: 
       <div className="field">
         <label>作業する AI</label>
         <label className="row" style={{ gap: 8, fontWeight: 600 }}>
-          <input type="radio" name="provider" value="claude-code" defaultChecked /> Claude Code（自動で最後まで進む）
+          <input type="radio" name="provider" value="claude-code" defaultChecked={defaultProvider === 'claude-code'} /> Claude Code（自動で最後まで進む）
         </label>
         <label className="row" style={{ gap: 8, fontWeight: 600 }}>
-          <input type="radio" name="provider" value="antigravity" /> Antigravity / Gemini（IDE のチャットで進む。許可の操作が必要な場合あり）
+          <input type="radio" name="provider" value="antigravity" defaultChecked={defaultProvider === 'antigravity'} /> Antigravity / Gemini（IDE のチャットで進む。許可の操作が必要な場合あり）
         </label>
       </div>
       <div>

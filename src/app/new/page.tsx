@@ -4,13 +4,14 @@ import { JOB_STATUS_LABEL, PROVIDER_LABEL, loadJobs } from '@/lib/jobs';
 import { NoChannel } from '../ui';
 import { JobForm } from './client';
 import { defaultTemplateFor, listTemplates } from '@/lib/services/templateService';
+import { loadAiSettings } from '@/lib/ai/providers';
 
 export default async function NewVideoPage() {
   const channel = await getCurrentChannel();
   if (!channel) return <div className="page"><h1>新しい動画を作る</h1><NoChannel /></div>;
   const jobs = await loadJobs(channel.id);
   const running = jobs.some((j) => j.status === 'running');
-  const [templates, defaultTemplate] = await Promise.all([listTemplates(), defaultTemplateFor(channel)]);
+  const [templates, defaultTemplate, ai] = await Promise.all([listTemplates(), defaultTemplateFor(channel), loadAiSettings()]);
 
   return (
     <div className="page">
@@ -18,7 +19,7 @@ export default async function NewVideoPage() {
       <p className="lead">
         AI がリサーチ・台本・動画制作・点検まで行い、承認の手前で止まります。できあがるとホームの「あなたの番」に出てきます（10〜20分ほど）。
       </p>
-      <JobForm disabled={running} templates={templates} defaultTemplateId={defaultTemplate.id} />
+      <JobForm disabled={running} templates={templates} defaultTemplateId={defaultTemplate.id} defaultProvider={ai.job.provider === 'antigravity' ? 'antigravity' : 'claude-code'} />
 
       {jobs.length > 0 && (
         <section>

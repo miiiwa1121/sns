@@ -10,6 +10,7 @@
     "agent": "tsx agent/cli.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@prisma/client": "^6.19.3",
     "@remotion/cli": "^4.0.534",
     "@remotion/media-utils": "^4.0.534",

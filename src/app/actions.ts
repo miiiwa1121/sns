@@ -21,6 +21,8 @@ import { listTemplates, validateTemplate } from '@/lib/services/templateService'
 import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
 import { postEditChat, saveScript, startRender, stopEditChat, stopRender } from '@/lib/services/editService';
 import type { ScriptLine } from '@/lib/script';
+import { PING_SCHEMA } from '@/lib/ai/schemas';
+import { PROVIDER_LABEL, PURPOSE_PROVIDERS, apiKeyEnvName, runProviderJson, type AiProvider, type AiPurpose } from '@/lib/ai/providers';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -376,4 +378,62 @@ export async function sendEditChat(projectId: string, _prev: ActionState, formDa
   if (!text) return fail('直したいことを入力してください');
   const error = await postEditChat(projectId, text);
   return error ? fail(error) : done('送りました');
+}
+
+// ---------- AI 連携 ----------
+
+const MODEL_NAME = /^[A-Za-z0-9._:/-]{0,100}$/;
+
+export async function saveAiAssignments(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const data: Record<string, string> = {};
+  for (const purpose of ['job', 'workshop', 'edit'] as AiPurpose[]) {
+    const provider = String(formData.get(`${purpose}Provider`) ?? '');
+    const model = String(formData.get(`${purpose}Model`) ?? '').trim();
+    if (!(PURPOSE_PROVIDERS[purpose] as string[]).includes(provider)) return fail('使えない AI が選ばれています');
+    if (!MODEL_NAME.test(model)) return fail('モデル名に使えない文字が含まれています');
+    const key = purpose === 'job' ? 'aiJob' : purpose === 'workshop' ? 'aiWorkshop' : 'aiEdit';
+    data[`${key}Provider`] = provider;
+    data[`${key}Model`] = provider === 'antigravity' ? '' : model;
+  }
+  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...data }, update: data });
+  return done('保存しました');
+}
+
+export async function saveAiPaths(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const get = (k: string) => String(formData.get(k) ?? '').trim();
+  const paths = { claudeBinPath: get('claudeBinPath') || null, antigravityBinPath: get('antigravityBinPath') || null };
+  for (const p of Object.values(paths)) {
+    if (p && !p.startsWith('/')) return fail('場所は / から始まる絶対パスで入力してください（空なら既定の場所）');
+  }
+  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...paths }, update: paths });
+  return done('保存しました');
+}
+
+export async function saveAiApiKey(provider: AiProvider, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const env = apiKeyEnvName(provider);
+  if (!env) return fail('この AI には API キーがありません');
+  const key = String(formData.get('apiKey') ?? '').trim();
+  if (!key) return fail('API キーを入力してください');
+  if (!/^[A-Za-z0-9._-]{10,300}$/.test(key)) return fail('API キーの形が正しくありません');
+  saveEnvValues({ [env]: key });
+  return done('API キーを保存しました。「接続テスト」で動くか確かめてください');
+}
+
+export async function clearAiApiKey(provider: AiProvider): Promise<ActionState> {
+  const env = apiKeyEnvName(provider);
+  if (!env) return fail('この AI には API キーがありません');
+  saveEnvValues({ [env]: '' });
+  return done('API キーを消しました');
+}
+
+export async function testAiProvider(provider: AiProvider, model: string): Promise<ActionState> {
+  if (provider === 'antigravity') return fail('Antigravity は IDE で動くため、ここからは試せません（状態の確認のみ）');
+  const started = Date.now();
+  try {
+    const out = await runProviderJson<{ reply: string }>(provider, model, 'あなたは接続テストに答えます。日本語で短く答えます。', '「接続できました」とだけ返してください。', PING_SCHEMA);
+    const sec = ((Date.now() - started) / 1000).toFixed(1);
+    return { ok: true, message: `${PROVIDER_LABEL[provider]}${model ? `（${model}）` : ''}: 「${out.reply.slice(0, 40)}」と返りました（${sec}秒）` };
+  } catch (error) {
+    return fail(`${PROVIDER_LABEL[provider]} に接続できませんでした: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

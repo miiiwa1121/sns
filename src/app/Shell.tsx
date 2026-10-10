@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { Activity, BookOpen, ChartColumn, Clapperboard, Film, House, LayoutTemplate, Menu, Moon, Plus, Search, Settings, Sun, UserRound } from 'lucide-react';
+import { Activity, BookOpen, Bot, ChartColumn, Clapperboard, Film, House, LayoutTemplate, Menu, Moon, Plus, Search, Settings, Sun, UserRound } from 'lucide-react';
 import { selectChannel } from './actions';
 
 const NAV = [
@@ -21,6 +21,7 @@ const NAV_SUB = [
 ];
 // サイドバーの一番下に置く
 const NAV_BOTTOM = [
+  { href: '/ai', label: 'AI 連携', icon: Bot },
   { href: '/settings', label: '設定', icon: Settings },
   { href: '/guide', label: '使い方', icon: BookOpen },
 ];

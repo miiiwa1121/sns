@@ -215,6 +215,15 @@ model AppSetting {
   cleanupIncludeVideo Boolean   @default(false) // 作業ファイルに加えて、動画とサムネも消す
   lastCleanupAt       DateTime? // 最後に整理した日時
   lastCleanupBytes    Int? // 最後に整理で消した量（バイト）
+  // AI 連携（管理画面の「AI 連携」）。用途ごとに使う AI とモデル。モデルが空ならその AI の既定
+  aiJobProvider       String    @default("claude-code") // 動画づくりの依頼の既定: "claude-code" | "antigravity"
+  aiJobModel          String    @default("")
+  aiWorkshopProvider  String    @default("claude-code") // 構成案の相談・試作: "claude-code" | "anthropic-api" | "gemini-api"
+  aiWorkshopModel     String    @default("")
+  aiEditProvider      String    @default("claude-code") // 動画編集の手直し: 同上
+  aiEditModel         String    @default("")
+  claudeBinPath       String? // Claude Code の場所（空なら ~/.local/bin/claude）
+  antigravityBinPath  String? // Antigravity の場所（空なら既定の場所）
   updatedAt           DateTime  @updatedAt
 }
 

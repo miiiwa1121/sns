@@ -3,10 +3,10 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
-import { runClaudeJson } from '@/lib/claude';
+import { runAiJson } from '@/lib/ai/providers';
+import { EDIT_SCHEMA } from '@/lib/ai/schemas';
 import { validateScriptLines, type ScriptLine } from '@/lib/script';
 import { projectWorkDir } from '@/lib/storage';
-import { MOODS, SCENE_TYPES } from '../../../remotion/types';
 
 /**
  * 動画編集画面（/projects/[id]/edit）。台本を手で直す・AI に直してもらう・音声つきの動画を作り直す。
@@ -140,30 +140,6 @@ const EDIT_SYSTEM_PROMPT = [
   '絵文字は使いません。特定の企業・人物を応援・批判する言い回しはしません。',
 ].join('\n');
 
-const EDIT_SCHEMA = {
-  type: 'object',
-  properties: {
-    reply: { type: 'string' },
-    title: { type: ['string', 'null'] },
-    lines: {
-      type: ['array', 'null'],
-      minItems: 1,
-      maxItems: 30,
-      items: {
-        type: 'object',
-        properties: {
-          text: { type: 'string' },
-          caption: { type: 'string' },
-          emphasis: { type: 'array', items: { type: 'string' } },
-          mood: { type: 'string', enum: MOODS },
-          scene: { type: 'object', properties: { type: { type: 'string', enum: SCENE_TYPES } }, required: ['type'] },
-        },
-        required: ['text'],
-      },
-    },
-  },
-  required: ['reply', 'title', 'lines'],
-};
 
 export async function runEditMessage(messageId: string): Promise<void> {
   const message = await prisma.projectEditMessage.findUnique({
@@ -209,7 +185,7 @@ export async function runEditMessage(messageId: string): Promise<void> {
       '- lines: 台本を直すときは、直した後の全行（直していない行もそのまま含める）。直さないときは null。',
       '- title: タイトルを直すときは新しいタイトル（30字程度まで）。直さないときは null。',
     ].join('\n\n');
-    const out = await runClaudeJson<{ reply: string; title: string | null; lines: ScriptLine[] | null }>(EDIT_SYSTEM_PROMPT, prompt, EDIT_SCHEMA);
+    const out = await runAiJson<{ reply: string; title: string | null; lines: ScriptLine[] | null }>('edit', EDIT_SYSTEM_PROMPT, prompt, EDIT_SCHEMA);
     if (!(await stillPending())) return;
     if (out.lines) {
       const error = validateScriptLines(out.lines);

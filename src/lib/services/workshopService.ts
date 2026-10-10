@@ -3,7 +3,8 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
-import { runClaudeJson } from '@/lib/claude';
+import { runAiJson } from '@/lib/ai/providers';
+import { WORKSHOP_CHAT_SCHEMA, WORKSHOP_SAMPLE_SCHEMA } from '@/lib/ai/schemas';
 import { validateScriptLines, type ScriptLine } from '@/lib/script';
 import { MOODS, SCENE_TYPES } from '../../../remotion/types';
 import { DEFAULT_TEMPLATE, TEMPLATE_LIMITS } from '@/lib/services/templateService';
@@ -145,7 +146,7 @@ export async function runWorkshopMessage(messageId: string): Promise<void> {
 
   try {
     if (message.kind === 'chat') {
-      const out = await runClaudeJson<ChatAnswer>(SYSTEM_PROMPT, chatPrompt(workshop, latestUserText(workshop)), CHAT_SCHEMA);
+      const out = await runAiJson<ChatAnswer>('workshop', SYSTEM_PROMPT, chatPrompt(workshop, latestUserText(workshop)), WORKSHOP_CHAT_SCHEMA);
       // 待っている間に停止されていたら、結果は捨てる
       if (!(await stillPending(message.id))) return;
       const revised = out.revisedBody?.trim() ? out.revisedBody.trim().slice(0, TEMPLATE_LIMITS.body) : null;
@@ -166,7 +167,7 @@ export async function runWorkshopMessage(messageId: string): Promise<void> {
     } else {
       const topic = message.sampleTopic ?? FALLBACK_TOPIC;
       const research = await prisma.trendResearch.findFirst({ where: { accountId: workshop.accountId, topic } });
-      const out = await runClaudeJson<SampleScript & { note: string }>(SYSTEM_PROMPT, samplePrompt(workshop, topic, research), SAMPLE_SCHEMA);
+      const out = await runAiJson<SampleScript & { note: string }>('workshop', SYSTEM_PROMPT, samplePrompt(workshop, topic, research), WORKSHOP_SAMPLE_SCHEMA);
       if (!(await stillPending(message.id))) return;
       const error = validateScriptLines(out.lines);
       if (error) throw new Error(`台本の形が正しくありませんでした（${error}）。もう一度試作してください`);
@@ -289,37 +290,3 @@ export async function promptsForDisplay(w: WorkshopWithContext & { accountId: st
   };
 }
 
-const CHAT_SCHEMA = {
-  type: 'object',
-  properties: {
-    reply: { type: 'string' },
-    revisedBody: { type: ['string', 'null'] },
-    sampleTopic: { type: ['string', 'null'] },
-  },
-  required: ['reply', 'revisedBody', 'sampleTopic'],
-};
-
-const SAMPLE_SCHEMA = {
-  type: 'object',
-  properties: {
-    title: { type: 'string' },
-    note: { type: 'string' },
-    lines: {
-      type: 'array',
-      minItems: 1,
-      maxItems: 30,
-      items: {
-        type: 'object',
-        properties: {
-          text: { type: 'string' },
-          caption: { type: 'string' },
-          emphasis: { type: 'array', items: { type: 'string' } },
-          mood: { type: 'string', enum: MOODS },
-          scene: { type: 'object', properties: { type: { type: 'string', enum: SCENE_TYPES } }, required: ['type'] },
-        },
-        required: ['text'],
-      },
-    },
-  },
-  required: ['title', 'note', 'lines'],
-};
