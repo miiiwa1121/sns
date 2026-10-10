@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Player, Thumbnail } from '@remotion/player';
 import { ArrowLeft, Film, Play, Save, Send, Square, Text, Trash2 } from 'lucide-react';
 import { ShortVideo, TAIL_FRAMES } from '../../../../../remotion/ShortVideo';
@@ -98,6 +98,12 @@ export function WorkshopHeader({
   remove: () => Promise<ActionState>;
 }) {
   const [result, setResult] = useState<ActionState>(null);
+  // 結果のメッセージ（「名前を変えました」など）は数秒で消す。失敗は少し長めに出す
+  useEffect(() => {
+    if (!result) return;
+    const t = setTimeout(() => setResult(null), result.ok ? 3000 : 6000);
+    return () => clearTimeout(t);
+  }, [result]);
   return (
     <header className="ws-header">
       <Link href="/templates" className="btn" aria-label="構成案一覧に戻る" title="構成案一覧に戻る">
