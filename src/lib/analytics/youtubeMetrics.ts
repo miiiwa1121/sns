@@ -13,7 +13,7 @@ export async function fetchYouTubeMetrics(accountSlug: string, videoId: string, 
 > {
   const auth = YouTubePublisher.getAuthorizedClient(accountSlug);
   if (!auth) {
-    return { ok: false, error: `このアカウントの YouTube 連携が未設定です（npm run youtube:auth -- ${accountSlug}）` };
+    return { ok: false, error: `このアカウントの YouTube 連携が未設定です（アカウント画面で「YouTube と連携する」を行ってください）` };
   }
 
   const youtube = google.youtube({ version: 'v3', auth });

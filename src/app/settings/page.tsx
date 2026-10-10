@@ -1,12 +1,12 @@
 import { connection } from 'next/server';
 import { formatBytes, loadSettings, planCleanup, storageUsage } from '@/lib/services/cleanupService';
-import { cleanupNow, saveCleanup } from '../actions';
+import { cleanupNow, saveCleanup, saveYouTubeClient } from '../actions';
 import { ActionButton, ActionForm } from '../projects/[id]/client';
 import { formatDate } from '../ui';
 
 const KIND_LABEL = { work: '作業ファイル', video: '動画・サムネ', job: '依頼の作業フォルダ' } as const;
 
-// サービス全体の設定。いまは生成物（data/）の整理だけ
+// サービス全体の設定（YouTube API のクライアント、生成物の整理）
 export default async function SettingsPage() {
   // ファイルの容量は毎回その場で測る
   await connection();
@@ -14,10 +14,35 @@ export default async function SettingsPage() {
   const usage = storageUsage();
   const plan = await planCleanup(settings);
   const planBytes = plan.reduce((sum, i) => sum + i.bytes, 0);
+  const clientId = process.env.YOUTUBE_CLIENT_ID ?? '';
+  const clientSecretSet = Boolean(process.env.YOUTUBE_CLIENT_SECRET);
 
   return (
     <div className="page">
       <h1>設定</h1>
+
+      <section className="card stack" style={{ gap: 12 }}>
+        <h2>YouTube API</h2>
+        <p className="lead">
+          YouTube への投稿と再生数の取得に使う、Google Cloud の OAuth クライアント（種類は「デスクトップアプリ」）です。全アカウントで共通です。
+          作り方は docs/operations/youtube-setup.md の手順 1 を参照してください。保存したら、各アカウントの画面で「YouTube と連携する」を押します。
+        </p>
+        <p>
+          {clientId && clientSecretSet ? <span className="badge ok">設定済み</span> : <span className="badge">未設定</span>}{' '}
+          {clientId && <span className="muted">{clientId}</span>}
+        </p>
+        <ActionForm action={saveYouTubeClient} submitLabel="保存する">
+          <div className="field">
+            <label htmlFor="clientId">クライアント ID</label>
+            <input id="clientId" name="clientId" className="input" placeholder={clientId || 'xxxx.apps.googleusercontent.com'} autoComplete="off" />
+          </div>
+          <div className="field">
+            <label htmlFor="clientSecret">クライアント シークレット</label>
+            <input id="clientSecret" name="clientSecret" type="password" className="input" placeholder={clientSecretSet ? '（保存済み。変えるときだけ入力）' : 'GOCSPX-…'} autoComplete="off" />
+          </div>
+        </ActionForm>
+        <p className="muted">空欄の項目は今の値のまま残ります。シークレットは画面に表示しません。</p>
+      </section>
 
       <section className="card stack" style={{ gap: 12 }}>
         <h2>保存しているファイル</h2>

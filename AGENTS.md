@@ -86,9 +86,6 @@ npx prisma db push
 # 手順: docs/operations/agent-runbook.md
 npm run -s agent -- status
 
-# YouTube のリフレッシュトークン取得（初回のみ。docs/operations/youtube-setup.md）
-npm run youtube:auth
-
 # ⚠️ prisma/seed.ts は全データを削除して架空のデモアカウントを入れる。実運用DBでは実行しないこと
 
 # Prisma Studio (DB GUI閲覧)

@@ -3,9 +3,6 @@ import path from 'path';
 import { google } from 'googleapis';
 import { DATA_DIR } from '@/lib/storage';
 
-// デスクトップアプリ型 OAuth クライアントのループバック受け口（agent/youtube-auth.ts が待ち受ける）
-export const YOUTUBE_REDIRECT_URI = process.env.YOUTUBE_REDIRECT_URI || 'http://127.0.0.1:53682/oauth2callback';
-
 export const YOUTUBE_SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.readonly',
@@ -38,7 +35,7 @@ export interface YouTubeUploadResult {
 export class YouTubePublisher {
   /**
    * アカウントの認証済み OAuth2 クライアントを取得（クライアントID・シークレット・そのアカウントのリフレッシュトークンが揃っていなければ null）。
-   * リフレッシュトークンは `npm run youtube:auth -- <アカウントID>` で取得する。アカウントごとに別の YouTube チャンネルに対応する
+   * リフレッシュトークンは管理画面のアカウント画面の「YouTube と連携する」で取得する（src/lib/youtubeAuth.ts）。アカウントごとに別の YouTube チャンネルに対応する
    */
   static getAuthorizedClient(accountSlug: string) {
     const clientId = process.env.YOUTUBE_CLIENT_ID;
@@ -49,7 +46,8 @@ export class YouTubePublisher {
       return null;
     }
 
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, YOUTUBE_REDIRECT_URI);
+    // リフレッシュトークンでの更新だけに使うため、戻り先（redirect URI）は要らない
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
     oauth2Client.setCredentials({ refresh_token: refreshToken });
     return oauth2Client;
   }
@@ -79,7 +77,7 @@ export class YouTubePublisher {
       return {
         success: false,
         isSimulated: true,
-        message: `このアカウントの YouTube 連携が未設定のため、投稿していません（npm run youtube:auth -- ${accountSlug}）。`,
+        message: `このアカウントの YouTube 連携が未設定のため、投稿していません。アカウント画面で「YouTube と連携する」を行ってください。`,
       };
     }
 
@@ -95,7 +93,7 @@ export class YouTubePublisher {
       if (!expectedChannelId || actualChannelId !== expectedChannelId) {
         return {
           success: false,
-          message: `認証先のチャンネル（${actualChannelId ?? '不明'}）がアカウントのチャンネル（${expectedChannelId ?? '未登録'}）と一致しないため、投稿していません。npm run youtube:auth -- ${accountSlug} をやり直してください。`,
+          message: `認証先のチャンネル（${actualChannelId ?? '不明'}）がアカウントのチャンネル（${expectedChannelId ?? '未登録'}）と一致しないため、投稿していません。アカウント画面で「YouTube と連携する」をやり直してください。`,
         };
       }
 

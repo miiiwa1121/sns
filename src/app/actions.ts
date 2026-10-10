@@ -16,6 +16,7 @@ import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS }
 import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
+import { saveEnvValues } from '@/lib/envFile';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -236,4 +237,19 @@ export async function saveCleanup(_prev: ActionState, formData: FormData): Promi
 export async function cleanupNow(): Promise<ActionState> {
   const { removed, bytes } = await runCleanup();
   return done(removed === 0 ? '整理する対象はありませんでした' : `${removed} 件・${formatBytes(bytes)} を削除しました`);
+}
+
+// ---------- 設定（YouTube API のクライアント） ----------
+
+export async function saveYouTubeClient(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const clientId = String(formData.get('clientId') ?? '').trim();
+  const clientSecret = String(formData.get('clientSecret') ?? '').trim();
+  if (!clientId && !clientSecret) return fail('クライアント ID かシークレットを入力してください');
+  if (clientId && !clientId.endsWith('.apps.googleusercontent.com')) return fail('クライアント ID は「….apps.googleusercontent.com」の形です');
+  // 空欄の項目は今の値のまま（シークレットは画面に表示しないため、変えるときだけ入力する）
+  saveEnvValues({
+    ...(clientId ? { YOUTUBE_CLIENT_ID: clientId } : {}),
+    ...(clientSecret ? { YOUTUBE_CLIENT_SECRET: clientSecret } : {}),
+  });
+  return done('保存しました');
 }

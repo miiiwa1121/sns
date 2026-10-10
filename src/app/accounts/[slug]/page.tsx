@@ -4,11 +4,20 @@ import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
 import { YouTubePublisher } from '@/lib/publishers/youtubePublisher';
+import { youtubeClientReady } from '@/lib/youtubeAuth';
 import { updateAccount } from '../../actions';
 import { AccountForm } from '../AccountForm';
 
-export default async function AccountPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function AccountPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ youtube?: string; message?: string }>;
+}) {
   const { slug } = await params;
+  // 連携の結果（/api/youtube/oauth/callback から戻ってきたとき）
+  const { youtube: result, message } = await searchParams;
   const account = await prisma.account.findUnique({ where: { slug }, include: { platformConnections: true } });
   if (!account) notFound();
   const yt = account.platformConnections.find((c) => c.platform === 'youtube');
@@ -23,13 +32,26 @@ export default async function AccountPage({ params }: { params: Promise<{ slug: 
 
       <section className="card stack" style={{ gap: 8 }}>
         <h2 style={{ margin: 0 }}>YouTube 連携</h2>
+        {result && message && <p className={`notice ${result === 'ok' ? 'ok' : 'ng'}`}>{message}</p>}
         {connected ? (
           <p><span className="badge ok">連携済み</span> {channel.channelTitle}（{channel.channelId}）</p>
         ) : (
+          <p><span className="badge">未連携</span> このアカウントの動画は YouTube に投稿できません。</p>
+        )}
+        {!youtubeClientReady() ? (
+          <p className="muted">連携するには、先に<Link href="/settings">「設定」</Link>で YouTube API のクライアント ID とシークレットを保存してください。</p>
+        ) : (
           <>
-            <p><span className="badge">未連携</span> このアカウントの動画は YouTube に投稿できません。</p>
-            <p className="muted">ターミナルで次を実行し、ブラウザでこのアカウントの YouTube チャンネルを選んで許可してください（手順: docs/operations/youtube-setup.md）。</p>
-            <pre className="input" style={{ whiteSpace: 'pre-wrap' }}>npm run youtube:auth -- {account.slug}</pre>
+            <div>
+              {/* Route Handler へのページ遷移（Google の許可画面に移る）なので Link ではなく a を使う */}
+              <a className={`btn${connected ? '' : ' primary'}`} href={`/api/youtube/oauth/start?account=${encodeURIComponent(account.slug)}`}>
+                {connected ? 'YouTube と連携し直す' : 'YouTube と連携する'}
+              </a>
+            </div>
+            <p className="muted">
+              Google の画面に移ります。<strong>このアカウントの YouTube チャンネル（ブランドアカウント）</strong>を選び、権限のチェックをすべて入れて許可してください。
+              「Google はこのアプリを確認していません」と出たら「詳細」→「（アプリ名）に移動」で進みます。
+            </p>
           </>
         )}
         <p className="muted">投稿の直前に、認証先のチャンネルがここに登録したチャンネルと同じか確認し、違えば投稿しません。</p>
