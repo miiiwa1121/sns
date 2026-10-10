@@ -208,11 +208,11 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 
 /* 表示の切り替え（セグメント） */
 .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
-.seg a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--sub); }
+.seg a, .seg button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--sub); background: none; border: 0; cursor: pointer; }
 @media (max-width: 640px) {
-  .seg a span { display: none; } /* 狭い画面ではアイコンだけ */
+  .seg a span, .seg button span { display: none; } /* 狭い画面ではアイコンだけ */
 }
-.seg a.active { background: var(--surface); color: var(--accent-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.seg a.active, .seg button.active { background: var(--surface); color: var(--accent-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 
 /* 動画: 縦型で見る（1本ずつ上下にスナップ） */
 .video-feed {
@@ -253,7 +253,7 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .page.full-page { max-width: none; gap: 14px; }
 .ws-cols {
   display: grid; grid-template-columns: var(--ws-left) 8px minmax(320px, 1fr) 8px var(--ws-right);
-  height: calc(100dvh - 210px); min-height: 520px;
+  height: calc(100dvh - 230px); min-height: 520px;
 }
 .ws-col { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 2px 4px; }
 .ws-handle { cursor: col-resize; position: relative; touch-action: none; }
@@ -263,7 +263,24 @@ body.resizing { cursor: col-resize; user-select: none; }
 .ws-chat { overflow: hidden; }
 .ws-chat-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .ws-chat-card .chat { flex: 1; min-height: 0; overflow-y: auto; }
-.ws-player { width: min(100%, 300px); flex-shrink: 0; }
+.ws-header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+}
+.ws-title { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.ws-title h1 { margin: 0; font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ws-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ws-header > .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ws-center-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ws-preview { display: flex; flex-direction: column; gap: 14px; }
+.ws-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ws-samples { display: flex; gap: 4px; flex-wrap: wrap; }
+.ws-samples a { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--sub); border: 1px solid var(--border); }
+.ws-samples a.active { background: var(--accent-soft); color: var(--accent-strong); border-color: transparent; }
+.ws-player { width: min(100%, 360px); margin: 0 auto; }
+.ws-stills { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.ws-stills figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; }
 @media (max-width: 1100px) {
   .ws-cols { display: flex; flex-direction: column; height: auto; gap: 16px; }
   .ws-handle { display: none; }
