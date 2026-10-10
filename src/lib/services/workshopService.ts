@@ -10,7 +10,9 @@ import { DEFAULT_TEMPLATE, TEMPLATE_LIMITS } from '@/lib/services/templateServic
 
 /**
  * 構成案を AI と相談しながら作る（管理画面の「構成案」→「AI と相談して作る」）。
- * 相談: 人の発言に AI が答え、必要なら構成の指示の修正案を出す（下書きに反映する）。発言から試作を頼まれたら、続けて試作する。
+ * 相談を始めた時点で構成案を作り（名前がなければ sample1, sample2 …）、名前の変更や AI の修正はその構成案に直接保存する。
+ * 既存の構成案を改善するときは複製（「◯◯ のコピー」）を作って直す。その構成案が相談から生まれたものなら、前の相談を開き直す。
+ * 相談: 人の発言に AI が答え、必要なら構成の指示の修正案を出す（構成案に保存する）。発言から試作を頼まれたら、続けて試作する。
  * 試作: 下書きの構成案で台本を1本だけ書かせ、画面で映像としてプレビューする（音声なし）。
  * AI の発言は pending で作り、別プロセス（agent/workshop-runner.ts）が埋める。画面は数秒ごとに読み直す。
  * 作業中は停止できる（別プロセスのプロセスグループごと止める）。
@@ -22,16 +24,43 @@ export type SampleScript = { title: string; lines: ScriptLine[] };
 
 export async function startWorkshop(accountId: string, baseTemplateId: string | null) {
   const base = baseTemplateId ? await prisma.structureTemplate.findUnique({ where: { id: baseTemplateId } }) : null;
-  return prisma.templateWorkshop.create({
+  // 相談から生まれた構成案なら、新しく作らずに前の相談を開き直す
+  if (base) {
+    const owned = await prisma.templateWorkshop.findFirst({ where: { templateId: base.id }, orderBy: { updatedAt: 'desc' } });
+    if (owned) return owned;
+  }
+  const names = new Set((await prisma.structureTemplate.findMany({ select: { name: true } })).map((t) => t.name));
+  const template = await prisma.structureTemplate.create({
     data: {
-      accountId,
-      baseTemplateId: base?.id ?? null,
-      name: base ? base.name : '新しい構成案',
+      name: base ? copyName(base.name, names) : sampleName(names),
       description: base?.description ?? null,
       // 新しく作る場合も、既定の構成案をたたき台にする（白紙より相談しやすい）
       body: base?.body ?? DEFAULT_TEMPLATE.body,
     },
   });
+  return prisma.templateWorkshop.create({ data: { accountId, templateId: template.id, baseTemplateId: base?.id ?? null } });
+}
+
+// 名前のない新しい構成案は sample1, sample2 …（使われていない最小の番号）
+function sampleName(names: Set<string>): string {
+  let n = 1;
+  while (names.has(`sample${n}`)) n++;
+  return `sample${n}`;
+}
+
+// 複製は「◯◯ のコピー」。同じ名前があれば「◯◯ のコピー 2」…
+function copyName(name: string, names: Set<string>): string {
+  const base = `${name} のコピー`.slice(0, TEMPLATE_LIMITS.name);
+  if (!names.has(base)) return base;
+  let n = 2;
+  while (names.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
+/** 相談の名前を変える（= 構成案の名前を変える） */
+export async function renameWorkshopTemplate(workshopId: string, name: string) {
+  const w = await prisma.templateWorkshop.findUniqueOrThrow({ where: { id: workshopId } });
+  await prisma.structureTemplate.update({ where: { id: w.templateId }, data: { name } });
 }
 
 /** AI が作業中の発言があるか（同時に1つまで） */
@@ -100,14 +129,19 @@ async function stillPending(messageId: string): Promise<boolean> {
 async function loadForRun(messageId: string) {
   return prisma.templateWorkshopMessage.findUnique({
     where: { id: messageId },
-    include: { workshop: { include: { account: true, messages: { orderBy: { createdAt: 'asc' } } } } },
+    include: { workshop: { include: { account: true, template: true, messages: { orderBy: { createdAt: 'asc' } } } } },
   });
+}
+
+/** プロンプトに使う形（構成案の名前・構成の指示を相談に重ねる） */
+export function workshopContext<W extends { template: { name: string; body: string } }>(w: W): W & { name: string; body: string } {
+  return { ...w, name: w.template.name, body: w.template.body };
 }
 
 export async function runWorkshopMessage(messageId: string): Promise<void> {
   const message = await loadForRun(messageId);
   if (!message || message.status !== 'pending') return;
-  const { workshop } = message;
+  const workshop = workshopContext(message.workshop);
 
   try {
     if (message.kind === 'chat') {
@@ -117,7 +151,8 @@ export async function runWorkshopMessage(messageId: string): Promise<void> {
       const revised = out.revisedBody?.trim() ? out.revisedBody.trim().slice(0, TEMPLATE_LIMITS.body) : null;
       await prisma.$transaction([
         prisma.templateWorkshopMessage.update({ where: { id: message.id }, data: { status: 'done', content: out.reply, proposedBody: revised, pid: null } }),
-        ...(revised ? [prisma.templateWorkshop.update({ where: { id: workshop.id }, data: { body: revised } })] : []),
+        // 構成案に直接保存する
+        ...(revised ? [prisma.structureTemplate.update({ where: { id: workshop.templateId }, data: { body: revised } })] : []),
       ]);
       // 発言の中で試作を頼まれたら、続けて試作する（同じプロセスで）
       if (out.sampleTopic !== null) {
@@ -290,17 +325,3 @@ const SAMPLE_SCHEMA = {
   },
   required: ['title', 'note', 'lines'],
 };
-
-// ---------- 保存 ----------
-
-/** 下書きを構成案として保存する。overwrite なら元の構成案を上書き、そうでなければ新しく作る */
-export async function saveWorkshop(workshopId: string, overwrite: boolean): Promise<string> {
-  const w = await prisma.templateWorkshop.findUniqueOrThrow({ where: { id: workshopId } });
-  const data = { name: w.name, description: w.description, body: w.body };
-  const template =
-    overwrite && w.baseTemplateId
-      ? await prisma.structureTemplate.update({ where: { id: w.baseTemplateId }, data })
-      : await prisma.structureTemplate.create({ data });
-  await prisma.templateWorkshop.update({ where: { id: w.id }, data: { savedTemplateId: template.id } });
-  return template.id;
-}

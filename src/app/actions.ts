@@ -18,7 +18,7 @@ import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 import { saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
-import { postChat, postSample, saveWorkshop, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
+import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -296,7 +296,7 @@ export async function deleteTemplate(templateId: string): Promise<ActionState> {
   if (templates.length <= 1) return fail('構成案が1件だけのときは削除できません');
   const inUse = await prisma.account.count({ where: { defaultTemplateId: templateId } });
   if (inUse > 0) return fail(`${inUse} 件のアカウントの既定になっています。先にアカウントの既定を変えてください`);
-  // 依頼・企画からの参照は外れる（依頼には名前と本文の写しが残る）
+  // 依頼・企画からの参照は外れる（依頼には名前と本文の写しが残る）。この構成案を直していた相談も一緒に消える
   await prisma.structureTemplate.delete({ where: { id: templateId } });
   revalidatePath('/', 'layout');
   redirect('/templates');
@@ -333,21 +333,13 @@ export async function stopWorkshopAction(workshopId: string): Promise<ActionStat
 export async function renameWorkshop(workshopId: string, name: string): Promise<ActionState> {
   const trimmed = name.trim();
   if (!trimmed || trimmed.length > 60) return fail('名前は1〜60文字で入力してください');
-  await prisma.templateWorkshop.update({ where: { id: workshopId }, data: { name: trimmed } });
+  await renameWorkshopTemplate(workshopId, trimmed);
   return done('名前を変えました');
 }
 
-export async function saveWorkshopAsTemplate(workshopId: string, overwrite: boolean): Promise<ActionState> {
+/** 相談を削除する（= 相談で作った構成案ごと消す。構成案の削除と同じ条件） */
+export async function deleteWorkshop(workshopId: string): Promise<ActionState> {
   const w = await prisma.templateWorkshop.findUnique({ where: { id: workshopId } });
   if (!w) return fail('相談が見つかりません');
-  const error = validateTemplate({ name: w.name, description: w.description ?? '', body: w.body });
-  if (error) return fail(error);
-  await saveWorkshop(workshopId, overwrite);
-  return done(overwrite ? '元の構成案を上書きしました' : '新しい構成案として保存しました');
-}
-
-export async function deleteWorkshop(workshopId: string): Promise<ActionState> {
-  await prisma.templateWorkshop.delete({ where: { id: workshopId } });
-  revalidatePath('/', 'layout');
-  redirect('/templates');
+  return deleteTemplate(w.templateId);
 }

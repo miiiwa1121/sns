@@ -139,11 +139,11 @@ YouTube向けの横型マスター動画。
 `AgentJob`（依頼）には `templateId` に加えて、依頼した時点の `templateName` / `templateBody`（写し）を保存する。構成案をあとで編集・削除しても、どの内容で作ったかが分かるようにするため。実行時の指示書もこの写しから作る。
 
 ### 11. `TemplateWorkshop` / `TemplateWorkshopMessage` (構成案の相談)
-構成案を AI と相談しながら作る場。`TemplateWorkshop` は下書き（`name` / `description` / `body`）と、前提にするアカウント、元にした構成案（`baseTemplateId`）、保存先（`savedTemplateId`）を持つ。
+構成案を AI と相談しながら作る場。`TemplateWorkshop` は、直している構成案（`templateId`。名前・説明・構成の指示はこちらが持つ。構成案を消すと相談も消える）、前提にするアカウント、複製の元にした構成案（`baseTemplateId`）を持つ。相談を始めた時点で構成案を作る（名前がなければ sample1, sample2 …、既存から始めるときは「◯◯ のコピー」）。
 `TemplateWorkshopMessage` は1発言。
 - `role`: `user` | `assistant`、`kind`: `chat`（相談）| `sample`（試作）
 - `status`: AI の発言は `pending` で作り、`agent/workshop-runner.ts` が `done` / `failed` にする
-- `proposedBody`: AI が出した構成の指示の修正案（下書きに反映済み）
+- `proposedBody`: AI が出した構成の指示の修正案（構成案に保存済み）
 - `sampleTopic` / `sampleJson`: 試作の話題と台本 `{ title, lines }`
 
 ### 12. `AppSetting` (サービス全体の設定)

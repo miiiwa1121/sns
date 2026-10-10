@@ -2,13 +2,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
-import { SYSTEM_PROMPT, promptsForDisplay, type SampleScript } from '@/lib/services/workshopService';
+import { SYSTEM_PROMPT, promptsForDisplay, workshopContext, type SampleScript } from '@/lib/services/workshopService';
 import { buildJobPrompt } from '../../../../../agent/job-prompt';
 import {
   deleteWorkshop,
   renameWorkshop,
   requestWorkshopSample,
-  saveWorkshopAsTemplate,
   sendWorkshopChat,
   stopWorkshopAction,
 } from '../../../actions';
@@ -17,7 +16,7 @@ import { ChatForm, PromptViewer, SamplePreview, WorkshopHeader } from './client'
 import { ChatScroll, ResizableColumns } from './columns';
 
 // 構成案を AI と相談しながら作る画面。
-// ヘッダー: 戻る・名前（その場で変更）・試作する／停止・保存・削除
+// ヘッダー: 戻る・名前（その場で変更）・試作する／停止・自動保存の表示・削除（構成案ごと）
 // 左: AI に渡すプロンプト（そのまま） / 中央: 試作のプレビュー（動画・画像 / テキスト） / 右: 相談（列の幅は境目のドラッグで変えられる）
 export default async function WorkshopPage({
   params,
@@ -28,15 +27,17 @@ export default async function WorkshopPage({
 }) {
   const { id } = await params;
   const { sample: sampleId } = await searchParams;
-  const workshop = await prisma.templateWorkshop.findUnique({
+  const found = await prisma.templateWorkshop.findUnique({
     where: { id },
     include: {
       account: { include: { platformConnections: true } },
-      baseTemplate: true,
+      template: true,
       messages: { orderBy: { createdAt: 'asc' } },
     },
   });
-  if (!workshop) notFound();
+  if (!found) notFound();
+  // 名前・構成の指示は構成案が持つ。プロンプトの組み立てに使えるよう、相談に重ねる
+  const workshop = workshopContext(found);
 
   const busy = workshop.messages.some((m) => m.status === 'pending');
   const samples = workshop.messages.filter((m) => m.kind === 'sample' && m.role === 'assistant' && m.status === 'done' && m.sampleJson);
@@ -62,12 +63,9 @@ export default async function WorkshopPage({
       <WorkshopHeader
         name={workshop.name}
         busy={busy}
-        baseTemplateName={workshop.baseTemplate?.name ?? null}
         rename={renameWorkshop.bind(null, workshop.id)}
         sample={requestWorkshopSample.bind(null, workshop.id)}
         stop={stopWorkshopAction.bind(null, workshop.id)}
-        saveOverwrite={workshop.baseTemplate ? saveWorkshopAsTemplate.bind(null, workshop.id, true) : null}
-        saveNew={saveWorkshopAsTemplate.bind(null, workshop.id, false)}
         remove={deleteWorkshop.bind(null, workshop.id)}
       />
 

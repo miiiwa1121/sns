@@ -12,7 +12,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const template = await prisma.structureTemplate.findUnique({
     where: { id },
-    include: { accounts: { select: { name: true, slug: true } }, _count: { select: { projects: true } } },
+    include: { accounts: { select: { name: true, slug: true } }, _count: { select: { projects: true, ownedWorkshops: true } } },
   });
   if (!template) notFound();
   const channel = await getCurrentChannel();
@@ -35,7 +35,8 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
       <div className="row between" style={{ flexWrap: 'wrap', gap: 12 }}>
         <h1>{template.name}</h1>
         <form action={startTemplateWorkshop.bind(null, template.id)}>
-          <button className="btn primary">AI と相談して改善する</button>
+          {/* 相談から生まれた構成案は、その相談を開き直す。それ以外は複製を作って相談する */}
+          <button className="btn primary">{template._count.ownedWorkshops > 0 ? 'AI との相談を開く' : 'AI と相談して改善する（複製を作る）'}</button>
         </form>
       </div>
       <p className="muted">

@@ -225,27 +225,27 @@ model StructureTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  accounts  Account[]
-  projects  Project[]
-  jobs      AgentJob[]
-  workshops TemplateWorkshop[]
+  accounts       Account[]
+  projects       Project[]
+  jobs           AgentJob[]
+  workshops      TemplateWorkshop[] @relation("WorkshopBase")
+  ownedWorkshops TemplateWorkshop[] @relation("WorkshopTemplate")
 }
 
 // 13. 構成案を AI と相談しながら作る場（管理画面の「構成案」→「AI と相談して作る」）
-// 下書き（name / description / body）を会話と試作で少しずつ直し、納得したら構成案として保存する
+// 相談を始めた時点で構成案を作り（名前がなければ sample1, sample2 …）、名前の変更や AI の修正はその構成案に直接保存する。
+// 既存の構成案を改善するときは複製（「◯◯ のコピー」）を作って直す（元の構成案と、それを使う依頼に影響させないため）
 model TemplateWorkshop {
-  id              String   @id @default(cuid())
-  accountId       String // 相談の前提にするアカウント（コンセプト・視聴者・話し方）
-  baseTemplateId  String? // 直す元の構成案（新しく作る場合は null）。保存時に上書きできる
-  name            String // 下書きの名前
-  description     String? // 下書きの説明
-  body            String // 下書きの構成の指示
-  savedTemplateId String? // 保存先の構成案（保存したら記録する）
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  accountId      String // 相談の前提にするアカウント（コンセプト・視聴者・話し方）
+  templateId     String // この相談で直している構成案（名前・説明・構成の指示はここに持つ）
+  baseTemplateId String? // 複製の元にした構成案（新しく作った場合は null）
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   account      Account                   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  baseTemplate StructureTemplate?        @relation(fields: [baseTemplateId], references: [id], onDelete: SetNull)
+  baseTemplate StructureTemplate?        @relation("WorkshopBase", fields: [baseTemplateId], references: [id], onDelete: SetNull)
+  template     StructureTemplate         @relation("WorkshopTemplate", fields: [templateId], references: [id], onDelete: Cascade)
   messages     TemplateWorkshopMessage[]
 }
 

@@ -265,6 +265,7 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 }
 .ws-name:hover { border-color: var(--border); }
 .ws-name:focus { outline: none; border-color: var(--accent); background: var(--surface-2); }
+.ws-autosave { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .ws-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 .ws-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ws-left) 8px minmax(320px, 1fr) 8px var(--ws-right); }

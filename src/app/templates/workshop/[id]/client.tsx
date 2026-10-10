@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Player, Thumbnail } from '@remotion/player';
-import { ArrowLeft, Film, Play, Save, Send, Square, Text, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Film, Play, Send, Square, Text, Trash2 } from 'lucide-react';
 import { ShortVideo, TAIL_FRAMES } from '../../../../../remotion/ShortVideo';
 import { toPreviewLines, type ScriptLine } from '@/lib/script';
 import type { ActionState } from '@/app/actions';
@@ -79,22 +79,16 @@ function NameInput({ name, rename, onResult }: { name: string; rename: (name: st
 export function WorkshopHeader({
   name,
   busy,
-  baseTemplateName,
   rename,
   sample,
   stop,
-  saveOverwrite,
-  saveNew,
   remove,
 }: {
   name: string;
   busy: boolean;
-  baseTemplateName: string | null;
   rename: (name: string) => Promise<ActionState>;
   sample: () => Promise<ActionState>;
   stop: () => Promise<ActionState>;
-  saveOverwrite: (() => Promise<ActionState>) | null;
-  saveNew: () => Promise<ActionState>;
   remove: () => Promise<ActionState>;
 }) {
   const [result, setResult] = useState<ActionState>(null);
@@ -121,30 +115,18 @@ export function WorkshopHeader({
         ) : (
           <HeaderButton action={sample} label="試作する" pendingLabel="依頼中…" icon={<Play size={16} />} className="primary" onResult={setResult} />
         )}
-        {saveOverwrite && baseTemplateName && (
-          <HeaderButton
-            action={saveOverwrite}
-            label="上書き保存"
-            pendingLabel="保存中…"
-            icon={<Save size={16} />}
-            confirm={`「${baseTemplateName}」をこの下書きで上書きします。この構成案を既定にしているアカウントの、これからの依頼に影響します。よろしいですか？`}
-            onResult={setResult}
-          />
-        )}
-        <HeaderButton
-          action={saveNew}
-          label={saveOverwrite ? '新規保存' : '構成案として保存'}
-          pendingLabel="保存中…"
-          icon={<Save size={16} />}
-          onResult={setResult}
-        />
+        {/* 名前の変更と AI の修正は、その場で構成案に保存される */}
+        <span className="muted ws-autosave" title="名前の変更や AI の修正は、その場で構成案に保存されます">
+          <Check size={14} />
+          自動保存
+        </span>
         <HeaderButton
           action={remove}
           label="削除"
           pendingLabel="削除中…"
           icon={<Trash2 size={16} />}
           className="danger"
-          confirm="この相談（会話と試作）を削除します。保存した構成案は残ります。よろしいですか？"
+          confirm={`構成案「${name}」と、この相談（会話と試作）を削除します。元に戻せません。よろしいですか？`}
           onResult={setResult}
         />
       </div>
