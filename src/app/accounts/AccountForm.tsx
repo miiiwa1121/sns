@@ -11,17 +11,22 @@ type Values = {
   targetAudience?: string;
   toneOfVoice?: string;
   systemPromptRules?: string | null;
+  defaultTemplateId?: string | null;
   youtubeHandle?: string;
 };
+
+type TemplateOption = { id: string; name: string };
 
 export function AccountForm({
   action,
   values = {},
   isNew,
+  templates,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   values?: Values;
   isNew?: boolean;
+  templates: TemplateOption[];
 }) {
   const [state, run, pending] = useActionState(action, null);
   const field = (name: keyof Values, label: string, opts: { multiline?: boolean; placeholder?: string; hint?: string } = {}) => (
@@ -44,6 +49,13 @@ export function AccountForm({
       {field('targetAudience', '想定する視聴者', { multiline: true })}
       {field('toneOfVoice', '話し方', { placeholder: '例: 親しみやすく、肩の力が抜けた分かりやすい語り口' })}
       {field('systemPromptRules', '台本のルール（任意）', { multiline: true })}
+      <div className="field">
+        <label htmlFor="defaultTemplateId">既定の構成案</label>
+        <select id="defaultTemplateId" name="defaultTemplateId" className="input" defaultValue={values.defaultTemplateId ?? templates[0]?.id}>
+          {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <span className="muted">依頼するときに選び直せます。構成案の中身は「構成案」の画面で編集します</span>
+      </div>
       {field('youtubeHandle', 'YouTube ハンドル', { placeholder: '@example' })}
       <div>
         <button className="btn primary" disabled={pending}>{pending ? '保存中…' : isNew ? 'アカウントを追加する' : '保存する'}</button>

@@ -26,7 +26,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         </span>
       </div>
       <p className="muted">
-        {job.account.name} ・ {PROVIDER_LABEL[job.provider] ?? job.provider} ・ {job.createdAt.toLocaleString('ja-JP')} 開始 ・ {elapsed(job.createdAt, job.finishedAt ?? undefined)}
+        {job.account.name} ・ {PROVIDER_LABEL[job.provider] ?? job.provider}{job.templateName && ` ・ 構成案: ${job.templateName}`} ・ {job.createdAt.toLocaleString('ja-JP')} 開始 ・ {elapsed(job.createdAt, job.finishedAt ?? undefined)}
       </p>
       {job.provider === 'claude-code' && <JobProgress entries={log} done={job.status === 'succeeded'} />}
 

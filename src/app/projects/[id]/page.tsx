@@ -36,7 +36,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <Link href="/projects" className="row muted" style={{ gap: 6 }}><ArrowLeft size={16} />企画一覧</Link>
 
       <div className="stack" style={{ gap: 10 }}>
-        <span className="muted">{project.account.name}</span>
+        <span className="muted">
+          {project.account.name}
+          {project.template && <> ・ 構成案: <Link href={`/templates/${project.template.id}`}>{project.template.name}</Link></>}
+        </span>
         <h1>{project.title}</h1>
         <StepBar next={next} labels />
       </div>

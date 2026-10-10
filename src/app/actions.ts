@@ -17,6 +17,7 @@ import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 import { saveEnvValues } from '@/lib/envFile';
+import { listTemplates, validateTemplate } from '@/lib/services/templateService';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -138,8 +139,13 @@ export async function createVideoJob(_prev: ActionState, formData: FormData): Pr
   // 同時に動かすのは1件まで（音声合成・レンダリングが重いため）
   const running = await prisma.agentJob.findFirst({ where: { status: 'running' } });
   if (running) return fail('作業中の依頼があります。終わってから依頼してください');
+  const template = (await listTemplates()).find((t) => t.id === formData.get('templateId'));
+  if (!template) return fail('構成案を選んでください');
 
-  const job = await prisma.agentJob.create({ data: { accountId: channel.id, provider: String(provider), theme } });
+  // 構成案は名前と本文の写しも残す（あとで構成案を編集・削除しても、何で作ったか分かるように）
+  const job = await prisma.agentJob.create({
+    data: { accountId: channel.id, provider: String(provider), theme, templateId: template.id, templateName: template.name, templateBody: template.body },
+  });
   // 依頼の実行は別プロセスで行う（画面の応答を待たせない）
   const child = spawn('npx', ['tsx', 'agent/job-runner.ts', job.id], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
   child.unref();
@@ -174,8 +180,14 @@ function accountFields(formData: FormData) {
     targetAudience: get('targetAudience'),
     toneOfVoice: get('toneOfVoice'),
     systemPromptRules: get('systemPromptRules') || null,
+    defaultTemplateId: get('defaultTemplateId') || null,
     youtubeHandle: get('youtubeHandle'),
   };
+}
+
+async function validateTemplateRef(templateId: string | null): Promise<string | null> {
+  if (!templateId) return null;
+  return (await prisma.structureTemplate.findUnique({ where: { id: templateId } })) ? null : '構成案が見つかりません';
 }
 
 function validateAccount(f: ReturnType<typeof accountFields>): string | null {
@@ -190,7 +202,7 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
   const f = accountFields(formData);
   const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
   if (!SLUG.test(slug)) return fail('ID は半角英小文字・数字・-・_ の3〜40文字で入力してください');
-  const error = validateAccount(f);
+  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId));
   if (error) return fail(error);
   if (await prisma.account.findUnique({ where: { slug } })) return fail('この ID は使われています');
 
@@ -212,7 +224,7 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
 
 export async function updateAccount(accountId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const f = accountFields(formData);
-  const error = validateAccount(f);
+  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId));
   if (error) return fail(error);
   const { youtubeHandle, ...data } = f;
   await prisma.account.update({ where: { id: accountId }, data });
@@ -252,4 +264,39 @@ export async function saveYouTubeClient(_prev: ActionState, formData: FormData):
     ...(clientSecret ? { YOUTUBE_CLIENT_SECRET: clientSecret } : {}),
   });
   return done('保存しました');
+}
+
+// ---------- 構成案 ----------
+
+function templateFields(formData: FormData) {
+  const get = (k: string) => String(formData.get(k) ?? '').trim();
+  return { name: get('name'), description: get('description'), body: get('body') };
+}
+
+export async function createTemplate(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = templateFields(formData);
+  const error = validateTemplate(f);
+  if (error) return fail(error);
+  const created = await prisma.structureTemplate.create({ data: { ...f, description: f.description || null } });
+  revalidatePath('/', 'layout');
+  redirect(`/templates/${created.id}`);
+}
+
+export async function updateTemplate(templateId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = templateFields(formData);
+  const error = validateTemplate(f);
+  if (error) return fail(error);
+  await prisma.structureTemplate.update({ where: { id: templateId }, data: { ...f, description: f.description || null } });
+  return done('保存しました（これからの依頼に使われます。作成済みの企画は変わりません）');
+}
+
+export async function deleteTemplate(templateId: string): Promise<ActionState> {
+  const templates = await listTemplates();
+  if (templates.length <= 1) return fail('構成案が1件だけのときは削除できません');
+  const inUse = await prisma.account.count({ where: { defaultTemplateId: templateId } });
+  if (inUse > 0) return fail(`${inUse} 件のアカウントの既定になっています。先にアカウントの既定を変えてください`);
+  // 依頼・企画からの参照は外れる（依頼には名前と本文の写しが残る）
+  await prisma.structureTemplate.delete({ where: { id: templateId } });
+  revalidatePath('/', 'layout');
+  redirect('/templates');
 }

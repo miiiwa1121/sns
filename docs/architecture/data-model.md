@@ -21,7 +21,7 @@ erDiagram
     ShortClip ||--o{ PublishLog : "1:N"
 ```
 
-`AgentJob`（依頼）と `AppSetting`（サービス全体の設定）は図に含めていない。
+`AgentJob`（依頼）、`StructureTemplate`（構成案）、`AppSetting`（サービス全体の設定）は図に含めていない。
 
 ---
 
@@ -37,6 +37,7 @@ erDiagram
 - `targetAudience` (String): ペルソナ・ターゲット層
 - `toneOfVoice` (String): トーン＆マナー
 - `systemPromptRules` (String?): 台本生成時にAIへ強制適用するルール
+- `defaultTemplateId` (String?): 既定の構成案（`StructureTemplate`）。依頼時に選び直せる。未設定なら構成案一覧の先頭を使う
 - `isActive` (Boolean): 有効フラグ
 
 ### 2. `PlatformConnection` (SNS連携情報)
@@ -52,6 +53,7 @@ erDiagram
 エージェントが Web 検索で調べた話題（`npm run agent -- trend:add`）。
 - `id`: 一意キー
 - `accountId`: 対象Account
+- `templateId`: 台本づくりに使った構成案（依頼から引き継ぐ。分析で構成案ごとに比べるため）
 - `topic`: トレンドトピック名
 - `category`: カテゴリ
 - `buzzScore`, `searchVolume`, `trendVelocity`: 実測できた場合のみ。推測値は入れず null にする
@@ -128,7 +130,15 @@ YouTube向けの横型マスター動画。
 - `confidenceScore`: 信頼度スコア (0.0〜1.0)
 - `appliedCount`: 次回企画への適用回数
 
-### 10. `AppSetting` (サービス全体の設定)
+### 10. `StructureTemplate` (動画の構成案)
+指示書（`agent/job-prompt.ts`）のうち「構成」の部分。全アカウント共通の一覧で、管理画面の「構成案」で編集する。1件もなければ既定（「標準（30〜50秒）」）を自動で作る。
+- `name` / `description`: 名前と一覧に出す説明
+- `body`: 指示書の「構成案」節にそのまま入る構成の指示（尺・行数・流れ・場面の選び方など）
+- コマンド・手順・禁止事項・事実と出典のルールは指示書に固定で、構成案からは変えられない。
+
+`AgentJob`（依頼）には `templateId` に加えて、依頼した時点の `templateName` / `templateBody`（写し）を保存する。構成案をあとで編集・削除しても、どの内容で作ったかが分かるようにするため。実行時の指示書もこの写しから作る。
+
+### 11. `AppSetting` (サービス全体の設定)
 1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
 - `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）

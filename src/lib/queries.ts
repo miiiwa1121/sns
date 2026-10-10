@@ -7,6 +7,7 @@ const projectInclude = {
   publishLogs: true,
   analytics: true,
   trendResearch: true,
+  template: { select: { id: true, name: true } },
 } as const;
 
 export type ProjectWithAll = NonNullable<Awaited<ReturnType<typeof loadProject>>>;

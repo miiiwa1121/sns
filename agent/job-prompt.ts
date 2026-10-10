@@ -14,6 +14,8 @@ export interface JobPromptInput {
     toneOfVoice: string;
     systemPromptRules: string | null;
   };
+  // 構成案（管理画面の「構成案」で編集する部分）。指示書の「構成案」節にそのまま入る
+  template: { name: string; body: string };
 }
 
 export function buildJobPrompt(i: JobPromptInput): string {
@@ -35,6 +37,11 @@ export function buildJobPrompt(i: JobPromptInput): string {
 ## 今回の依頼
 ${theme}
 
+## 構成案: ${i.template.name}
+台本は次の構成案に従って組み立ててください。
+
+${i.template.body.trim()}
+
 ## 使えるコマンド（これ以外のコマンドは使えません）
 - \`${agent} status\`
 - \`${agent} knowledge\` … 過去の実測から得た知見。台本の前に必ず確認する
@@ -53,8 +60,8 @@ JSON ファイルは作業フォルダ \`${i.workDir}\` に書き、コマンド
    \`{ "topic": "...", "angle": "動画の切り口（1文）", "summary": "分かった事実。数字・日付は出典どおり", "sources": [{ "title": "...", "url": "https://..." }] }\`
 3. **台本と投稿文**: \`knowledge\` を確認してから \`project.json\` を書いて \`project:create ... --job ${i.jobId}\`。
    - 形式は実例 \`${i.workDir}/example-project.json\` を読んで合わせる（trendId は手順2の ID にする）。
-   - 尺は 30〜50 秒（1行 2〜5 秒、8〜14 行）。1行目は \`hook\` 場面で、手を止めさせる一言にする。
-   - 場面（scene.type）: hook / keyword / compare / chat（reply: text / table / bill / chart / calculator）/ timeline / chips / select / outro。最後の行は outro。各場面の項目は \`${i.workDir}/scene-types.ts\` の型定義を読む。
+   - 尺・行数・流れ・場面の選び方は、上の「構成案」に従う。
+   - 使える場面（scene.type）: hook / keyword / compare / chat（reply: text / table / bill / chart / calculator）/ timeline / chips / select / outro。各場面の項目は \`${i.workDir}/scene-types.ts\` の型定義を読む。
    - 表情（mood）: panic / surprised / happy / think / nod。字幕の強調は emphasis。
    - 字幕は \\n で区切った1行が全角13字程度まで。読み間違えやすい英語は text をカタカナにし、caption に正しい表記を書く。
    - **事実は出典に書いてあることだけ**。推測で数字を作らない。食い違う情報は断定しない。

@@ -20,6 +20,7 @@ model Account {
   targetAudience    String // 想定ペルソナ・ターゲット層
   toneOfVoice       String // トーン＆マナー (例: 「スピーディ・毒舌・明快」)
   systemPromptRules String? // 台本生成時に強制適用するプロンプト規則
+  defaultTemplateId String? // 既定の構成案（依頼時に選び直せる）
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -30,6 +31,7 @@ model Account {
   trendResearches     TrendResearch[]
   agentKnowledges     AgentKnowledge[]
   agentJobs           AgentJob[]
+  defaultTemplate     StructureTemplate?   @relation(fields: [defaultTemplateId], references: [id], onDelete: SetNull)
 }
 
 // 2. SNS連携情報 (YouTube, TikTok, Instagram, X)
@@ -74,11 +76,13 @@ model Project {
   targetAudience  String?
   estimatedViews  String?
   trendResearchId String? // 企画の元になったリサーチ（出典の追跡用）
+  templateId      String? // 台本づくりに使った構成案（依頼から引き継ぐ。分析で構成案ごとに比べる）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  account       Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  trendResearch TrendResearch?    @relation(fields: [trendResearchId], references: [id], onDelete: SetNull)
+  account       Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  trendResearch TrendResearch?     @relation(fields: [trendResearchId], references: [id], onDelete: SetNull)
+  template      StructureTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   longFormVideo LongFormVideo?
   shortClips    ShortClip[]
   publishLogs   PublishLog[]
@@ -180,19 +184,23 @@ model AgentKnowledge {
 
 // 10. 動画づくりの依頼（管理画面から AI エージェントに依頼する）
 model AgentJob {
-  id         String    @id @default(cuid())
-  accountId  String
-  provider   String // "claude-code" | "antigravity"
-  theme      String? // 依頼のテーマ（空ならおまかせ）
-  status     String    @default("running") // "running" | "succeeded" | "failed" | "canceled"
-  projectId  String? // エージェントが作った企画（project:create --job で紐づく）
-  pid        Int? // 実行中のプロセス（Claude Code のみ）
-  error      String?
-  createdAt  DateTime  @default(now())
-  finishedAt DateTime?
+  id           String    @id @default(cuid())
+  accountId    String
+  provider     String // "claude-code" | "antigravity"
+  theme        String? // 依頼のテーマ（空ならおまかせ）
+  status       String    @default("running") // "running" | "succeeded" | "failed" | "canceled"
+  projectId    String? // エージェントが作った企画（project:create --job で紐づく）
+  templateId   String? // 使った構成案
+  templateName String? // 依頼した時点の構成案の名前（構成案を消しても残す）
+  templateBody String? // 依頼した時点の構成案の本文（あとで構成案を編集しても、何で作ったか分かるように）
+  pid          Int? // 実行中のプロセス（Claude Code のみ）
+  error        String?
+  createdAt    DateTime  @default(now())
+  finishedAt   DateTime?
 
-  account Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  account  Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  project  Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  template StructureTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 }
 
 // 11. サービス全体の設定（1行だけ。id = "app"）。管理画面の「設定」で編集する
@@ -204,4 +212,19 @@ model AppSetting {
   lastCleanupAt       DateTime? // 最後に整理した日時
   lastCleanupBytes    Int? // 最後に整理で消した量（バイト）
   updatedAt           DateTime  @updatedAt
+}
+
+// 12. 動画の構成案（指示書のうち「構成」の部分）。全アカウント共通の一覧で、各アカウントは既定を1つ選ぶ
+// コマンド・手順・禁止事項は指示書（agent/job-prompt.ts）に固定で、ここでは編集できない
+model StructureTemplate {
+  id          String   @id @default(cuid())
+  name        String // 例: 「標準（30〜50秒・ニュース解説）」
+  description String? // 一覧に出す説明（どんな動画向けか）
+  body        String // 指示書に差し込む構成の指示（尺・流れ・場面の使い方・字幕のルールなど）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  accounts Account[]
+  projects Project[]
+  jobs     AgentJob[]
 }

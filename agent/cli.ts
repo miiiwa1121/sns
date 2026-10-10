@@ -204,6 +204,8 @@ async function projectCreate(file: string, flags: Record<string, string | true>)
     data: {
       accountId: account.id,
       trendResearchId: spec.trendId ?? null,
+      // 依頼で作る場合は、依頼で選んだ構成案を記録する
+      templateId: job?.templateId ?? null,
       title: spec.title,
       concept: spec.concept,
       stage: 'production',

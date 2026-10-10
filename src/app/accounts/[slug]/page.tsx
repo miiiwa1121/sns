@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
 import { YouTubePublisher } from '@/lib/publishers/youtubePublisher';
 import { youtubeClientReady } from '@/lib/youtubeAuth';
+import { listTemplates } from '@/lib/services/templateService';
 import { updateAccount } from '../../actions';
 import { AccountForm } from '../AccountForm';
 
@@ -22,6 +23,7 @@ export default async function AccountPage({
   if (!account) notFound();
   const yt = account.platformConnections.find((c) => c.platform === 'youtube');
   const channel = safeJson<{ channelId?: string; channelTitle?: string }>(yt?.apiConfig, {});
+  const templates = await listTemplates();
   const tokenReady = YouTubePublisher.getAuthorizedClient(account.slug) !== null;
   const connected = Boolean(channel.channelId && tokenReady);
 
@@ -62,6 +64,7 @@ export default async function AccountPage({
         <AccountForm
           action={updateAccount.bind(null, account.id)}
           values={{ ...account, youtubeHandle: yt?.handle ?? '' }}
+          templates={templates}
         />
       </section>
     </div>

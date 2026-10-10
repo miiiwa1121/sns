@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { prisma } from '../src/lib/prisma';
 import { jobDir, DATA_DIR } from '../src/lib/storage';
 import { runAutoCleanup } from '../src/lib/services/cleanupService';
+import { DEFAULT_TEMPLATE } from '../src/lib/services/templateService';
 import { buildJobPrompt } from './job-prompt';
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
@@ -35,7 +36,9 @@ async function main() {
   const repoDir = process.cwd();
   const workDir = jobWorkDir(job.id);
   fs.mkdirSync(workDir, { recursive: true });
-  const prompt = buildJobPrompt({ jobId: job.id, repoDir, workDir, theme: job.theme, channel: job.account });
+  // 依頼した時点の構成案（写し）を使う。写しのない古い依頼は既定の構成案
+  const template = job.templateBody ? { name: job.templateName ?? '（名前なし）', body: job.templateBody } : DEFAULT_TEMPLATE;
+  const prompt = buildJobPrompt({ jobId: job.id, repoDir, workDir, theme: job.theme, channel: job.account, template });
   fs.writeFileSync(path.join(workDir, 'prompt.md'), prompt);
   // 台本 JSON の実例（第1弾）。指示書から参照する
   fs.copyFileSync(path.join(repoDir, 'agent/examples/project.example.json'), path.join(workDir, 'example-project.json'));

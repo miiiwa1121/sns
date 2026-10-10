@@ -1,0 +1,58 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { getCurrentChannel } from '@/lib/channel';
+import { buildJobPrompt } from '../../../../agent/job-prompt';
+import { deleteTemplate, updateTemplate } from '../../actions';
+import { ActionButton } from '../../projects/[id]/client';
+import { TemplateForm } from '../TemplateForm';
+
+export default async function TemplatePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const template = await prisma.structureTemplate.findUnique({
+    where: { id },
+    include: { accounts: { select: { name: true, slug: true } }, _count: { select: { projects: true } } },
+  });
+  if (!template) notFound();
+  const channel = await getCurrentChannel();
+
+  // 実際に AI に渡す指示書の見本（選択中のアカウント・テーマおまかせ）。パスなどは見本の値
+  const preview = channel
+    ? buildJobPrompt({
+        jobId: '(依頼ID)',
+        repoDir: '(リポジトリ)',
+        workDir: '(作業フォルダ)',
+        theme: null,
+        channel,
+        template: { name: template.name, body: template.body },
+      })
+    : null;
+
+  return (
+    <div className="page">
+      <Link href="/templates" className="row muted" style={{ gap: 6 }}><ArrowLeft size={16} />構成案一覧</Link>
+      <h1>{template.name}</h1>
+      <p className="muted">
+        既定にしているアカウント: {template.accounts.length > 0 ? template.accounts.map((a) => a.name).join('、') : 'なし'} ・ この構成案で作った企画 {template._count.projects} 件
+      </p>
+
+      <TemplateForm action={updateTemplate.bind(null, template.id)} values={template} />
+      <p className="muted">保存すると、これからの依頼に使われます。作成済みの企画や、作業中の依頼には影響しません。</p>
+
+      {preview && (
+        <details className="card">
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>AI に渡す指示書の全体（見本: {channel?.name}・テーマおまかせ）</summary>
+          <p className="muted" style={{ marginTop: 8 }}>「構成案」の節に、上の構成の指示が入ります。それ以外（コマンド・手順・禁止事項）は固定です。保存前の内容は反映されません。</p>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginTop: 8 }}>{preview}</pre>
+        </details>
+      )}
+
+      <section className="card stack" style={{ gap: 8 }}>
+        <h2 style={{ margin: 0 }}>削除</h2>
+        <p className="muted">アカウントの既定になっている構成案は削除できません。削除しても、これまでの依頼に使った内容の記録は残ります。</p>
+        <ActionButton action={deleteTemplate.bind(null, template.id)} label="この構成案を削除する" pendingLabel="削除中…" confirm={`「${template.name}」を削除します。よろしいですか？`} />
+      </section>
+    </div>
+  );
+}
