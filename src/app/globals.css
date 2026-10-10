@@ -95,7 +95,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transition: transform 0.2s ease;
 }
 .sidebar.closed { transform: translateX(-100%); }
-.sidebar .section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.sidebar .section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.sidebar .section.bottom { margin-top: auto; }
+.sidebar { overflow-y: auto; }
 .nav-link {
   display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px;
   color: var(--sub); font-weight: 600;
@@ -203,3 +205,46 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .video-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
 .video-card video { max-width: none; aspect-ratio: 9 / 16; object-fit: cover; }
+
+/* 表示の切り替え（セグメント） */
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.seg a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--sub); }
+@media (max-width: 640px) {
+  .seg a span { display: none; } /* 狭い画面ではアイコンだけ */
+}
+.seg a.active { background: var(--surface); color: var(--accent-strong); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+/* 動画: 縦型で見る（1本ずつ上下にスナップ） */
+.video-feed {
+  height: calc(100dvh - 190px); min-height: 420px; overflow-y: auto; scroll-snap-type: y mandatory;
+  border-radius: 16px; background: #000;
+}
+.feed-item {
+  height: 100%; scroll-snap-align: start; scroll-snap-stop: always;
+  display: flex; align-items: center; justify-content: center; gap: 24px; padding: 16px;
+}
+.feed-item video { height: 100%; width: auto; max-width: min(100%, 420px); aspect-ratio: 9 / 16; object-fit: contain; border-radius: 12px; }
+.feed-missing { color: #ccc; }
+.feed-info { width: 260px; color: #fff; }
+.feed-info .title { color: #fff; font-size: 16px; }
+.feed-info .muted, .feed-info a { color: rgba(255, 255, 255, 0.75); }
+@media (max-width: 860px) {
+  .feed-item { position: relative; padding: 0; }
+  .feed-item video { width: 100%; height: auto; max-height: 100%; border-radius: 0; }
+  .feed-info {
+    position: absolute; left: 0; right: 0; bottom: 56px; width: auto; padding: 12px 16px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); pointer-events: none;
+  }
+  .feed-info a { pointer-events: auto; }
+}
+
+/* 動画: 一覧表（表計算風。見出し固定・横スクロール） */
+.sheet-wrap { overflow: auto; max-height: calc(100dvh - 190px); padding: 0; }
+.sheet { font-size: 13px; white-space: nowrap; }
+.sheet th, .sheet td { padding: 6px 10px; border: 1px solid var(--border); vertical-align: middle; }
+.sheet thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); }
+.sheet th button { display: inline-flex; align-items: center; gap: 4px; font: inherit; font-weight: 700; color: var(--sub); background: none; border: 0; padding: 0; cursor: pointer; }
+.sheet .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sheet td.wrap { white-space: normal; min-width: 200px; max-width: 280px; }
+.sheet tbody tr:hover td { background: var(--surface-2); }
+.sheet-thumb { width: 27px; height: 48px; object-fit: cover; border-radius: 4px; display: block; }

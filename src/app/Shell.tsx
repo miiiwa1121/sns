@@ -18,6 +18,9 @@ const NAV = [
 const NAV_SUB = [
   { href: '/accounts', label: 'アカウント', icon: UserRound },
   { href: '/templates', label: '構成案', icon: LayoutTemplate },
+];
+// サイドバーの一番下に置く
+const NAV_BOTTOM = [
   { href: '/settings', label: '設定', icon: Settings },
   { href: '/guide', label: '使い方', icon: BookOpen },
 ];
@@ -89,6 +92,7 @@ function NavLinks({ homeBadge, activityBadge, pathname }: Badges & { pathname: s
     <>
       {NAV.map(link)}
       <div className="section">{NAV_SUB.map(link)}</div>
+      <div className="section bottom">{NAV_BOTTOM.map(link)}</div>
     </>
   );
 }
