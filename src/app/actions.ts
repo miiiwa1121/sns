@@ -18,7 +18,7 @@ import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 import { saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
-import { postChat, postSample, saveWorkshop, startWorkshop, workshopBusy } from '@/lib/services/workshopService';
+import { postChat, postSample, saveWorkshop, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -319,20 +319,22 @@ export async function sendWorkshopChat(workshopId: string, _prev: ActionState, f
   return done('送りました');
 }
 
-export async function requestWorkshopSample(workshopId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const topic = (String(formData.get('topicText') ?? '').trim() || String(formData.get('topic') ?? '').trim()).slice(0, 200);
-  if (!topic) return fail('試作の話題を選ぶか入力してください');
-  if (await workshopBusy(workshopId)) return fail('AI が答えている途中です。少し待ってください');
-  await postSample(workshopId, topic);
+export async function requestWorkshopSample(workshopId: string): Promise<ActionState> {
+  if (await workshopBusy(workshopId)) return fail('AI が作業している途中です。止めるか、終わるまで待ってください');
+  await postSample(workshopId);
   return done('試作を頼みました（30秒ほどかかります）');
 }
 
-export async function saveWorkshopDraft(workshopId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const f = templateFields(formData);
-  const error = validateTemplate(f);
-  if (error) return fail(error);
-  await prisma.templateWorkshop.update({ where: { id: workshopId }, data: { ...f, description: f.description || null } });
-  return done('下書きを保存しました（次の相談・試作から使われます）');
+export async function stopWorkshopAction(workshopId: string): Promise<ActionState> {
+  const stopped = await stopWorkshop(workshopId);
+  return done(stopped === 0 ? '止める作業はありませんでした' : '止めました');
+}
+
+export async function renameWorkshop(workshopId: string, name: string): Promise<ActionState> {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 60) return fail('名前は1〜60文字で入力してください');
+  await prisma.templateWorkshop.update({ where: { id: workshopId }, data: { name: trimmed } });
+  return done('名前を変えました');
 }
 
 export async function saveWorkshopAsTemplate(workshopId: string, overwrite: boolean): Promise<ActionState> {

@@ -249,46 +249,69 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .sheet tbody tr:hover td { background: var(--surface-2); }
 .sheet-thumb { width: 27px; height: 48px; object-fit: cover; border-radius: 4px; display: block; }
 
-/* 構成案の相談（左: 下書き / 中央: 試作 / 右: 相談）。左右の幅は境目のドラッグで変える */
-.page.full-page { max-width: none; gap: 14px; }
-.ws-cols {
-  display: grid; grid-template-columns: var(--ws-left) 8px minmax(320px, 1fr) 8px var(--ws-right);
-  height: calc(100dvh - 230px); min-height: 520px;
+/* 構成案の相談（ヘッダー + 左: プロンプト / 中央: 試作 / 右: 相談）。画面の高さいっぱいに使い、各列は中でスクロールする */
+.main:has(.full-page) { padding-bottom: 16px; }
+.page.full-page { max-width: none; gap: 12px; height: calc(100dvh - 96px); min-height: 560px; }
+.ws-header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; flex-shrink: 0;
+  padding: 10px 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
 }
-.ws-col { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 2px 4px; }
+.ws-header > .btn, .ws-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ws-title { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.ws-name {
+  font: inherit; font-size: 20px; font-weight: 800; color: var(--text); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; padding: 2px 6px; margin-left: -7px; width: 100%; max-width: 520px;
+}
+.ws-name:hover { border-color: var(--border); }
+.ws-name:focus { outline: none; border-color: var(--accent); background: var(--surface-2); }
+.ws-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.ws-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ws-left) 8px minmax(320px, 1fr) 8px var(--ws-right); }
+.ws-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .ws-handle { cursor: col-resize; position: relative; touch-action: none; }
 .ws-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: 2px; background: var(--border); transition: background 0.15s; }
 .ws-handle:hover::after, body.resizing .ws-handle::after { background: var(--accent); }
 body.resizing { cursor: col-resize; user-select: none; }
-.ws-chat { overflow: hidden; }
-.ws-chat-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-.ws-chat-card .chat { flex: 1; min-height: 0; overflow-y: auto; }
-.ws-header {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 12px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+/* 各列のカードは列の高さいっぱい。中身は内側でスクロールする */
+.ws-fill-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+
+.ws-prompt { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.ws-prompt-tabs { align-self: flex-start; }
+.ws-prompt-text {
+  flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 12px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
 }
-.ws-title { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
-.ws-title h1 { margin: 0; font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.ws-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
-.ws-header > .btn { display: inline-flex; align-items: center; gap: 6px; }
-.ws-center-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.ws-preview { display: flex; flex-direction: column; gap: 14px; }
-.ws-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.ws-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.ws-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
 .ws-samples { display: flex; gap: 4px; flex-wrap: wrap; }
 .ws-samples a { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--sub); border: 1px solid var(--border); }
 .ws-samples a.active { background: var(--accent-soft); color: var(--accent-strong); border-color: transparent; }
-.ws-player { width: min(100%, 360px); margin: 0 auto; }
-.ws-stills { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
-.ws-stills figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; }
-@media (max-width: 1100px) {
-  .ws-cols { display: flex; flex-direction: column; height: auto; gap: 16px; }
-  .ws-handle { display: none; }
-  .ws-col, .ws-chat { overflow: visible; }
-  .ws-chat-card .chat { max-height: 60dvh; }
-}
-.chat { display: flex; flex-direction: column; gap: 10px; }
+.ws-media { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+/* 映像は列の残りの高さに収める（9:16 を保ったまま、幅か高さの小さい方に合わせる） */
+.ws-player { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.ws-stills { flex-shrink: 0; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.ws-stills figure { margin: 0; width: 64px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; }
+.ws-text { flex: 1; min-height: 0; overflow: auto; }
+
+.chat { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .bubble { padding: 10px 14px; border-radius: 14px; font-size: 14px; max-width: 92%; }
 .bubble.user { align-self: flex-end; background: var(--accent-soft); }
 .bubble.assistant { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
-.sample-script { flex: 1; min-width: 200px; margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.chat-input { position: relative; }
+.chat-input textarea { padding-right: 52px; resize: none; }
+.send-btn {
+  position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--on-accent);
+}
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 1100px) {
+  .page.full-page { height: auto; }
+  .ws-cols { display: flex; flex-direction: column; gap: 16px; }
+  .ws-handle { display: none; }
+  .ws-fill-card { overflow: visible; }
+  .ws-prompt-text { max-height: 50dvh; }
+  .ws-player { height: 70dvh; flex: none; }
+  .chat { max-height: 60dvh; }
+}

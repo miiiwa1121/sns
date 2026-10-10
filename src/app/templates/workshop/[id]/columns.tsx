@@ -87,7 +87,7 @@ export function ResizableColumns({ left, center, right }: { left: React.ReactNod
       {handle('left')}
       <div className="ws-col">{center}</div>
       {handle('right')}
-      <div className="ws-col ws-chat">{right}</div>
+      <div className="ws-col">{right}</div>
     </div>
   );
 }

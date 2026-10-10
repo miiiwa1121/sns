@@ -3,24 +3,16 @@
 import Link from 'next/link';
 import { useActionState, useRef, useState } from 'react';
 import { Player, Thumbnail } from '@remotion/player';
-import { ArrowLeft, Film, Play, Save, Text, Trash2 } from 'lucide-react';
+import { ArrowLeft, Film, Play, Save, Send, Square, Text, Trash2 } from 'lucide-react';
 import { ShortVideo, TAIL_FRAMES } from '../../../../../remotion/ShortVideo';
 import { toPreviewLines, type ScriptLine } from '@/lib/script';
 import type { ActionState } from '@/app/actions';
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
-function Notice({ state }: { state: ActionState }) {
-  if (!state) return null;
-  return <p className={`notice ${state.ok ? 'ok' : 'ng'}`}>{state.message}</p>;
-}
-
-// 試作の話題を選ぶフォーム（左の列）。送信ボタンはヘッダーの「試作する」（form 属性でこのフォームを送る）
-export const SAMPLE_FORM_ID = 'workshop-sample-form';
-
 // ---------- ヘッダー ----------
 
-// 押すだけの操作（保存・削除）。結果はヘッダーの中に小さく出す
+// 押すだけの操作（試作・停止・保存・削除）。結果はヘッダーの中に小さく出す
 function HeaderButton({
   action,
   label,
@@ -53,11 +45,45 @@ function HeaderButton({
   );
 }
 
+// 構成案の名前。ヘッダーでそのまま直せる（Enter か、欄から離れたときに保存）
+function NameInput({ name, rename, onResult }: { name: string; rename: (name: string) => Promise<ActionState>; onResult: (s: ActionState) => void }) {
+  const [value, setValue] = useState(name);
+  const saved = useRef(name);
+  const commit = async () => {
+    if (value.trim() === saved.current) return;
+    const result = await rename(value);
+    if (result?.ok) saved.current = value.trim();
+    else setValue(saved.current);
+    onResult(result);
+  };
+  return (
+    <input
+      className="ws-name"
+      value={value}
+      maxLength={60}
+      aria-label="構成案の名前"
+      title="クリックして名前を変更"
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') {
+          setValue(saved.current);
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
 export function WorkshopHeader({
   name,
   busy,
   baseTemplateName,
   savedTemplateId,
+  rename,
+  sample,
+  stop,
   saveOverwrite,
   saveNew,
   remove,
@@ -66,6 +92,9 @@ export function WorkshopHeader({
   busy: boolean;
   baseTemplateName: string | null;
   savedTemplateId: string | null;
+  rename: (name: string) => Promise<ActionState>;
+  sample: () => Promise<ActionState>;
+  stop: () => Promise<ActionState>;
   saveOverwrite: (() => Promise<ActionState>) | null;
   saveNew: () => Promise<ActionState>;
   remove: () => Promise<ActionState>;
@@ -78,7 +107,7 @@ export function WorkshopHeader({
         戻る
       </Link>
       <div className="ws-title">
-        <h1>{name}</h1>
+        <NameInput name={name} rename={rename} onResult={setResult} />
         <span className="muted">
           {baseTemplateName ? `元にした構成案: ${baseTemplateName}` : '新しい構成案'}
           {savedTemplateId && <> ・ <Link href={`/templates/${savedTemplateId}`}>保存した構成案を開く</Link></>}
@@ -86,11 +115,12 @@ export function WorkshopHeader({
       </div>
       <div className="ws-actions">
         {result && <span className={`notice ${result.ok ? 'ok' : 'ng'}`}>{result.message}</span>}
-        {busy && <span className="badge you">AI が作業中…</span>}
-        <button className="btn primary" form={SAMPLE_FORM_ID} disabled={busy}>
-          <Play size={16} />
-          試作する
-        </button>
+        {/* AI が作業中（ボタンからの試作・チャットからの試作・相談の返事）は停止ボタンにする */}
+        {busy ? (
+          <HeaderButton action={stop} label="停止" pendingLabel="停止中…" icon={<Square size={14} fill="currentColor" />} className="danger" onResult={setResult} />
+        ) : (
+          <HeaderButton action={sample} label="試作する" pendingLabel="依頼中…" icon={<Play size={16} />} className="primary" onResult={setResult} />
+        )}
         {saveOverwrite && baseTemplateName && (
           <HeaderButton
             action={saveOverwrite}
@@ -122,47 +152,25 @@ export function WorkshopHeader({
   );
 }
 
-// ---------- 左の列: 試作の話題・下書き ----------
+// ---------- 左の列: AI に渡すプロンプト ----------
 
-export function SampleTopicForm({ action, topics }: { action: Action; topics: string[] }) {
-  const [state, run] = useActionState(action, null);
-  return (
-    <form id={SAMPLE_FORM_ID} action={run} className="stack" style={{ gap: 8 }}>
-      {topics.length > 0 && (
-        <select name="topic" className="input" defaultValue={topics[0]} aria-label="リサーチの話題">
-          {topics.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-      )}
-      <input name="topicText" className="input" placeholder={topics.length > 0 ? 'または話題を自由に入力（入力した方を使います）' : '試作の話題を入力'} />
-      <span className="muted">ヘッダーの「試作する」で、この話題と今の下書きで台本を1本書きます（30秒ほど）。リサーチの話題はその要約の範囲で書き、自由入力は Web で調べません。</span>
-      <Notice state={state} />
-    </form>
-  );
-}
+type PromptTab = { key: string; label: string; note: string; text: string };
 
-// 下書きの編集（名前・説明・構成の指示）。AI が構成案を直したら、key が変わって作り直される
-export function DraftForm({ action, values }: { action: Action; values: { name: string; description: string | null; body: string } }) {
-  const [state, run, pending] = useActionState(action, null);
+export function PromptViewer({ tabs }: { tabs: PromptTab[] }) {
+  const [active, setActive] = useState(tabs[0].key);
+  const tab = tabs.find((t) => t.key === active) ?? tabs[0];
   return (
-    <form action={run} className="stack" style={{ gap: 10 }}>
-      <div className="field">
-        <label htmlFor="name">名前</label>
-        <input id="name" name="name" className="input" maxLength={60} defaultValue={values.name} />
+    <div className="ws-prompt">
+      <div className="seg ws-prompt-tabs" role="tablist" aria-label="プロンプトの種類">
+        {tabs.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={t.key === active} className={t.key === active ? 'active' : ''} onClick={() => setActive(t.key)}>
+            <span>{t.label}</span>
+          </button>
+        ))}
       </div>
-      <div className="field">
-        <label htmlFor="description">説明（任意）</label>
-        <input id="description" name="description" className="input" maxLength={200} defaultValue={values.description ?? ''} />
-      </div>
-      <div className="field">
-        <label htmlFor="body">構成の指示</label>
-        <textarea id="body" name="body" className="input" rows={14} maxLength={4000} defaultValue={values.body} />
-      </div>
-      <div className="row between">
-        <span className="muted">手で直したら保存してから相談・試作してください</span>
-        <button className="btn" disabled={pending}>{pending ? '保存中…' : '下書きを保存'}</button>
-      </div>
-      <Notice state={state} />
-    </form>
+      <p className="muted">{tab.note}</p>
+      <pre className="ws-prompt-text">{tab.text}</pre>
+    </div>
   );
 }
 
@@ -193,6 +201,7 @@ export function SamplePreview({
   const starts = previewLines.map((_, i) => previewLines.slice(0, i).reduce((acc, l) => acc + l.durationInFrames, 0));
   const stillFrames = previewLines.map((l, i) => starts[i] + Math.floor(l.durationInFrames * 0.6));
   const playerKey = `${title}-${lines.length}-${durationInFrames}`;
+  const composition = { component: ShortVideo, inputProps, durationInFrames, compositionWidth: 1080, compositionHeight: 1920, fps: 30 };
 
   return (
     <div className="ws-preview">
@@ -217,48 +226,33 @@ export function SamplePreview({
       </div>
 
       {mode === 'media' ? (
-        <div className="stack" style={{ gap: 16 }}>
+        <div className="ws-media">
           <div className="ws-player">
             <Player
               key={playerKey}
-              component={ShortVideo}
-              inputProps={inputProps}
-              durationInFrames={durationInFrames}
-              compositionWidth={1080}
-              compositionHeight={1920}
-              fps={30}
+              {...composition}
               controls
               loop
               // 0 フレーム目は場面の入りのアニメーション前で何も見えないため、少し進めた位置で止めておく
               initialFrame={20}
-              style={{ width: '100%', aspectRatio: '9 / 16', borderRadius: 12, overflow: 'hidden' }}
+              style={{ height: '100%', maxWidth: '100%', aspectRatio: '9 / 16', borderRadius: 12, overflow: 'hidden' }}
               errorFallback={({ error }) => (
                 <div style={{ padding: 24, color: '#b91c1c', fontSize: 28 }}>この試作は表示できませんでした（場面の項目が足りない可能性）: {error.message}</div>
               )}
             />
           </div>
-          <div className="ws-stills">
+          <div className="ws-stills" aria-label="各行のコマ">
             {stillFrames.map((frame, i) => (
               <figure key={`${playerKey}-${i}`}>
-                <Thumbnail
-                  component={ShortVideo}
-                  inputProps={inputProps}
-                  frameToDisplay={frame}
-                  durationInFrames={durationInFrames}
-                  compositionWidth={1080}
-                  compositionHeight={1920}
-                  fps={30}
-                  style={{ width: '100%', aspectRatio: '9 / 16', borderRadius: 8, overflow: 'hidden' }}
-                />
+                <Thumbnail {...composition} frameToDisplay={frame} style={{ width: '100%', aspectRatio: '9 / 16', borderRadius: 6, overflow: 'hidden' }} />
                 <figcaption className="muted">{i + 1}</figcaption>
               </figure>
             ))}
           </div>
-          <p className="muted">音声なし。各行の長さは文字数からの見積もりです（実際の動画では音声の長さで決まります）。</p>
         </div>
       ) : (
-        <div className="stack" style={{ gap: 10 }}>
-          <div className="stack" style={{ gap: 2 }}>
+        <div className="ws-text">
+          <div className="stack" style={{ gap: 2, marginBottom: 10 }}>
             <strong>{title}</strong>
             {topic && <span className="muted">話題: {topic}</span>}
           </div>
@@ -295,21 +289,23 @@ export function ChatForm({ action, disabled }: { action: Action; disabled: boole
     return result;
   }, null);
   return (
-    <form ref={form} action={run} className="stack" style={{ gap: 8 }}>
-      <textarea
-        name="text"
-        className="input"
-        rows={3}
-        placeholder="例: 冒頭2行で結論を言い切る型にしたい / 試作の5行目が長いので行数を減らして"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
-        }}
-      />
-      <div className="row between">
-        <span className="muted">Ctrl / ⌘ + Enter で送信</span>
-        <button className="btn primary" disabled={pending || disabled}>{pending ? '送信中…' : '相談する'}</button>
+    <form ref={form} action={run} className="stack" style={{ gap: 6 }}>
+      <div className="chat-input">
+        <textarea
+          name="text"
+          className="input"
+          rows={3}
+          placeholder="例: 冒頭2行で結論を言い切る型にして試作して / 5行目が長いので行数を減らして"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
+          }}
+        />
+        <button className="send-btn" disabled={pending || disabled} aria-label="送信" title="送信（Ctrl / ⌘ + Enter）">
+          <Send size={18} />
+        </button>
       </div>
-      {state && !state.ok && <Notice state={state} />}
+      <span className="muted">Ctrl / ⌘ + Enter で送信。「試作して」と書けば、直した構成案で続けて試作します</span>
+      {state && !state.ok && <p className="notice ng">{state.message}</p>}
     </form>
   );
 }

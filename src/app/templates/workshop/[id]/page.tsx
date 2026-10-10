@@ -2,19 +2,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
-import type { SampleScript } from '@/lib/services/workshopService';
+import { SYSTEM_PROMPT, promptsForDisplay, type SampleScript } from '@/lib/services/workshopService';
+import { buildJobPrompt } from '../../../../../agent/job-prompt';
 import {
   deleteWorkshop,
+  renameWorkshop,
   requestWorkshopSample,
   saveWorkshopAsTemplate,
-  saveWorkshopDraft,
   sendWorkshopChat,
+  stopWorkshopAction,
 } from '../../../actions';
 import { AutoRefresh } from '../../../jobs/[id]/client';
-import { ChatForm, DraftForm, SamplePreview, SampleTopicForm, WorkshopHeader } from './client';
+import { ChatForm, PromptViewer, SamplePreview, WorkshopHeader } from './client';
 import { ChatScroll, ResizableColumns } from './columns';
 
-// 構成案を AI と相談しながら作る画面。ヘッダー: 名前・戻る・試作する・保存・削除 / 左: 試作の話題と下書き / 中央: 試作のプレビュー / 右: 相談（列の幅は境目のドラッグで変えられる）
+// 構成案を AI と相談しながら作る画面。
+// ヘッダー: 戻る・名前（その場で変更）・試作する／停止・保存・削除
+// 左: AI に渡すプロンプト（そのまま） / 中央: 試作のプレビュー（動画・画像 / テキスト） / 右: 相談（列の幅は境目のドラッグで変えられる）
 export default async function WorkshopPage({
   params,
   searchParams,
@@ -27,7 +31,7 @@ export default async function WorkshopPage({
   const workshop = await prisma.templateWorkshop.findUnique({
     where: { id },
     include: {
-      account: { include: { platformConnections: true, trendResearches: { orderBy: { createdAt: 'desc' }, take: 20 } } },
+      account: { include: { platformConnections: true } },
       baseTemplate: true,
       messages: { orderBy: { createdAt: 'asc' } },
     },
@@ -40,6 +44,18 @@ export default async function WorkshopPage({
   const script = shown ? safeJson<SampleScript>(shown.sampleJson, { title: '', lines: [] }) : null;
   const handle = workshop.account.platformConnections.find((c) => c.platform === 'youtube')?.handle ?? '';
 
+  // 左の列に出すプロンプト。どれも今の下書きと会話から、AI に渡すときと同じ組み立て方で作る
+  const prompts = await promptsForDisplay(workshop);
+  const jobPrompt = buildJobPrompt({
+    jobId: '(依頼ID)',
+    repoDir: '(リポジトリ)',
+    workDir: '(作業フォルダ)',
+    theme: null,
+    channel: workshop.account,
+    template: { name: workshop.name, body: workshop.body },
+  });
+  const withSystem = (text: string) => `# システムプロンプト\n${SYSTEM_PROMPT}\n\n# プロンプト\n${text}`;
+
   return (
     <div className="page full-page">
       <AutoRefresh active={busy} interval={2000} />
@@ -48,6 +64,9 @@ export default async function WorkshopPage({
         busy={busy}
         baseTemplateName={workshop.baseTemplate?.name ?? null}
         savedTemplateId={workshop.savedTemplateId}
+        rename={renameWorkshop.bind(null, workshop.id)}
+        sample={requestWorkshopSample.bind(null, workshop.id)}
+        stop={stopWorkshopAction.bind(null, workshop.id)}
         saveOverwrite={workshop.baseTemplate ? saveWorkshopAsTemplate.bind(null, workshop.id, true) : null}
         saveNew={saveWorkshopAsTemplate.bind(null, workshop.id, false)}
         remove={deleteWorkshop.bind(null, workshop.id)}
@@ -55,20 +74,24 @@ export default async function WorkshopPage({
 
       <ResizableColumns
         left={
-          <>
-            <section className="card stack" style={{ gap: 12 }}>
-              <h2 style={{ margin: 0 }}>試作の話題</h2>
-              <SampleTopicForm action={requestWorkshopSample.bind(null, workshop.id)} topics={workshop.account.trendResearches.map((r) => r.topic)} />
-            </section>
-            <section className="card stack" style={{ gap: 12 }}>
-              <h2 style={{ margin: 0 }}>構成案の下書き</h2>
-              <DraftForm key={workshop.updatedAt.toISOString()} action={saveWorkshopDraft.bind(null, workshop.id)} values={workshop} />
-            </section>
-            <p className="muted">{workshop.account.name} の動画として相談しています（コンセプト・視聴者・話し方を前提にします）。</p>
-          </>
+          <section className="card ws-fill-card">
+            <h2 style={{ margin: 0 }}>AI に渡すプロンプト</h2>
+            <PromptViewer
+              tabs={[
+                {
+                  key: 'job',
+                  label: '動画づくりの依頼',
+                  note: `この構成案で動画づくりを依頼したときに、AI に渡す指示書です（${workshop.account.name}・テーマおまかせの見本）。「構成案」の節が、ここで作っている下書きです。`,
+                  text: jobPrompt,
+                },
+                { key: 'sample', label: '試作', note: '「試作する」を押したときに AI に渡すプロンプトです（前回の話題で試作する場合）。', text: withSystem(prompts.sample) },
+                { key: 'chat', label: '相談', note: '相談を送ったときに AI に渡すプロンプトです。最後の節に、送った内容が入ります。', text: withSystem(prompts.chat) },
+              ]}
+            />
+          </section>
         }
         center={
-          <section className="card ws-center-card">
+          <section className="card ws-fill-card">
             {script && shown ? (
               <SamplePreview
                 title={script.title}
@@ -84,24 +107,23 @@ export default async function WorkshopPage({
                 }))}
               />
             ) : (
-              <div className="empty">
-                {busy ? 'AI が作業しています…' : 'まだ試作はありません。左で話題を選んで、ヘッダーの「試作する」を押してください。'}
-              </div>
+              <div className="empty">{busy ? 'AI が作業しています…' : 'まだ試作はありません。ヘッダーの「試作する」を押すか、チャットで「試作して」と頼んでください。'}</div>
             )}
           </section>
         }
         right={
-          <section className="card ws-chat-card">
+          <section className="card ws-fill-card">
             <h2 style={{ margin: 0 }}>相談</h2>
             {/* 発言の件数と状態が変わったら（返事が届いたら）下までスクロールする */}
             <ChatScroll count={workshop.messages.map((m) => `${m.id}:${m.status}`).join(',')}>
               {workshop.messages.length === 0 && (
-                <p className="muted">どんな動画にしたいかを伝えてください。AI が構成案（左の下書き）を直します。試作すると、その構成案で台本を1本書いて中央に映像で見せます。</p>
+                <p className="muted">どんな動画にしたいかを伝えてください。AI が構成案を直します（左のプロンプトの「構成案」の節に入ります）。「試作して」と頼むと、その構成案で台本を1本書いて中央に映像で見せます。</p>
               )}
               {workshop.messages.map((m) => (
                 <div key={m.id} className={`bubble ${m.role}`}>
                   {m.status === 'pending' && <span className="muted">{m.kind === 'sample' ? '試作しています…（30秒ほど）' : '考えています…'}</span>}
                   {m.status === 'failed' && <span className="notice ng">うまくいきませんでした: {m.error}</span>}
+                  {m.status === 'canceled' && <span className="muted">{m.kind === 'sample' ? '試作を止めました' : '止めました'}</span>}
                   {m.status === 'done' && <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>}
                   {m.proposedBody && (
                     <details style={{ marginTop: 6 }}>

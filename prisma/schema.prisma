@@ -259,7 +259,8 @@ model TemplateWorkshopMessage {
   proposedBody String? // AI が提案した構成の指示の全文（下書きに反映済み）
   sampleTopic  String? // 試作の話題
   sampleJson   String? // 試作の台本 { title, lines }（ブラウザで映像プレビューする）
-  status       String   @default("done") // "pending" | "done" | "failed"
+  status       String   @default("done") // "pending" | "done" | "failed" | "canceled"（停止した）
+  pid          Int? // AI を動かしているプロセス（停止に使う）
   error        String?
   createdAt    DateTime @default(now())
 

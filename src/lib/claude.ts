@@ -10,7 +10,19 @@ const TIMEOUT_MS = 5 * 60 * 1000;
  * 既定のシステムプロンプト・設定ファイル・MCP サーバーを読まないようにして、軽く速く動かす
  * （既定のままだと、あいさつ1回でも大量の前提を読み込むため。2026-10-10 に計測: 約1.5ドル → 約0.01ドル）。
  */
-export function runClaudeJson<T>(systemPrompt: string, prompt: string, schema: object): Promise<T> {
+export async function runClaudeJson<T>(systemPrompt: string, prompt: string, schema: object): Promise<T> {
+  // 構造化された答えがまれに返らないことがある（2026-10-10 に1回確認）ため、時間切れ以外の失敗は1回だけやり直す
+  try {
+    return await runOnce<T>(systemPrompt, prompt, schema);
+  } catch (error) {
+    if (error instanceof TimeoutError) throw error;
+    return runOnce<T>(systemPrompt, prompt, schema);
+  }
+}
+
+class TimeoutError extends Error {}
+
+function runOnce<T>(systemPrompt: string, prompt: string, schema: object): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       CLAUDE_BIN,
@@ -38,13 +50,16 @@ export function runClaudeJson<T>(systemPrompt: string, prompt: string, schema: o
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (code === null) return reject(new TimeoutError('時間切れになりました（5分）'));
       try {
-        const out = JSON.parse(stdout) as { is_error?: boolean; result?: string; structured_output?: T };
-        if (out.is_error || out.structured_output === undefined) throw new Error(out.result || '答えを受け取れませんでした');
+        const out = JSON.parse(stdout) as { is_error?: boolean; result?: string; subtype?: string; structured_output?: T };
+        if (out.is_error || out.structured_output === undefined) {
+          throw new Error(`答えを受け取れませんでした（${out.subtype ?? '不明'}${out.result ? `: ${out.result.slice(0, 200)}` : ''}）`);
+        }
         resolve(out.structured_output);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        reject(new Error(code === null ? '時間切れになりました（5分）' : `${detail}${stderr ? ` / ${stderr.slice(-300)}` : ''}`));
+        reject(new Error(`${detail}${stderr ? ` / ${stderr.slice(-300)}` : ''}`));
       }
     });
   });
