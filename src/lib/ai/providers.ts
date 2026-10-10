@@ -57,7 +57,7 @@ export function apiKeyEnvName(provider: AiProvider): string | null {
 
 // ---------- 設定 ----------
 
-// 置き場所を設定していないときに使う場所（環境変数 CLAUDE_BIN / ANTIGRAVITY_BIN があればそれ）
+// Claude Code・Antigravity の場所（環境変数 CLAUDE_BIN / ANTIGRAVITY_BIN があればそれ）
 export const DEFAULT_CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
 export const DEFAULT_ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || path.join(os.homedir(), '.antigravity-ide/antigravity-ide/bin/antigravity-ide');
 
@@ -71,14 +71,42 @@ export async function loadAiSettings() {
     job: pick('job', s.aiJobProvider, s.aiJobModel),
     workshop: pick('workshop', s.aiWorkshopProvider, s.aiWorkshopModel),
     edit: pick('edit', s.aiEditProvider, s.aiEditModel),
-    claudeBin: s.claudeBinPath || DEFAULT_CLAUDE_BIN,
-    antigravityBin: s.antigravityBinPath || DEFAULT_ANTIGRAVITY_BIN,
-    claudeBinPath: s.claudeBinPath,
-    antigravityBinPath: s.antigravityBinPath,
+    claudeBin: DEFAULT_CLAUDE_BIN,
+    antigravityBin: DEFAULT_ANTIGRAVITY_BIN,
   };
 }
 
 export type AiSettings = Awaited<ReturnType<typeof loadAiSettings>>;
+
+// ---------- API キー（「AI 連携」→ API） ----------
+
+// サービス自身が使っている環境変数は、ここから登録・上書きできないようにする
+const RESERVED_ENV = /^(YOUTUBE_|INTERNAL_API_TOKEN$|NEXT_|NODE_|DATABASE_|CLAUDE_BIN$|ANTIGRAVITY_BIN$|VOICEVOX_|REMOTION_|AGENT_)/;
+
+export function validateApiKeyEntry(label: string, envName: string, value: string): string | null {
+  if (!label || label.length > 40) return '名前は1〜40文字で入力してください';
+  if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(envName)) return '環境変数名は半角の英大文字・数字・_ で入力してください（例: ANTHROPIC_API_KEY）';
+  if (RESERVED_ENV.test(envName)) return 'この環境変数名はサービスが使っているため登録できません';
+  if (!value || value.length > 500 || /["\s]/.test(value)) return '値が正しくありません（空白や " は使えません）';
+  return null;
+}
+
+export type ApiKeyRow = { label: string; envName: string; masked: string | null; usedBy: string | null };
+
+/** 登録した API キーの一覧。.env.local に直接書いた Claude API・Gemini API のキーも並べる */
+export async function listApiKeys(): Promise<ApiKeyRow[]> {
+  const entries = await prisma.apiKeyEntry.findMany({ orderBy: { createdAt: 'asc' } });
+  const rows = entries.map((e) => ({ label: e.label, envName: e.envName }));
+  for (const [provider, env] of Object.entries(API_KEY_ENV) as [AiProvider, string][]) {
+    if (process.env[env] && !rows.some((r) => r.envName === env)) rows.push({ label: PROVIDER_LABEL[provider], envName: env });
+  }
+  const usedBy = (env: string) => (Object.entries(API_KEY_ENV) as [AiProvider, string][]).find(([, e]) => e === env)?.[0] ?? null;
+  return rows.map((r) => {
+    const value = process.env[r.envName];
+    const provider = usedBy(r.envName);
+    return { ...r, masked: value ? `…${value.slice(-4)}` : null, usedBy: provider ? PROVIDER_LABEL[provider] : null };
+  });
+}
 
 // ---------- 状態 ----------
 

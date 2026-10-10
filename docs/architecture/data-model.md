@@ -150,14 +150,16 @@ YouTube向けの横型マスター動画。
 ### 12. `ProjectEditMessage` (動画編集で AI に頼んだ記録)
 動画編集画面の右の列のやりとり。`role`（user / assistant）、`content`、`linesJson`（AI が直した台本の全行。台本に反映済み）、`status`（pending / done / failed / canceled）、`pid`（停止用）。AI の発言は `agent/edit-runner.ts` が埋める。
 
-### 13. `AppSetting` (サービス全体の設定)
+### 13. `ApiKeyEntry` (AI 連携で登録した API キー)
+「AI 連携」→ API の一覧の1行。`label`（自由な名前）と `envName`（環境変数名。一意）だけを持ち、値は `.env.local` に保存する（DB には入れない）。
+
+### 14. `AppSetting` (サービス全体の設定)
 1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
 - `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）
 - `cleanupIncludeVideo`: 作業ファイルに加えて動画・サムネも消すか（既定 false）
 - `lastCleanupAt` / `lastCleanupBytes`: 最後に整理した日時と、消した量（バイト）
 - `aiJobProvider` / `aiJobModel`、`aiWorkshopProvider` / `aiWorkshopModel`、`aiEditProvider` / `aiEditModel`: 用途ごとに使う AI とモデル（「AI 連携」画面。モデルが空ならその AI の既定）
-- `claudeBinPath` / `antigravityBinPath`: Claude Code・Antigravity の置き場所（空なら既定の場所）
 
 ---
 

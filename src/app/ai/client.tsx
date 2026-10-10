@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { ActionState } from '../actions';
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -79,36 +80,92 @@ export function AssignmentsForm({ action, rows, models }: { action: Action; rows
   );
 }
 
-export function ApiKeyForm({ action, placeholder }: { action: Action; placeholder: string }) {
-  const [state, run, pending] = useActionState(action, null);
+type KeyRow = { label: string; envName: string; masked: string | null; usedBy: string | null };
+
+// 追加中の1行（名前・環境変数名・値）。保存したら消える
+function NewKeyRow({ action, onDone, onCancel }: { action: Action; onDone: () => void; onCancel: () => void }) {
+  const [state, run, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
+    const result = await action(prev, fd);
+    if (result?.ok) onDone();
+    return result;
+  }, null);
   return (
-    <form action={run} className="stack" style={{ gap: 6 }}>
-      <div className="row" style={{ gap: 8 }}>
-        <input name="apiKey" type="password" className="input" placeholder={placeholder} autoComplete="off" style={{ flex: 1 }} />
-        <button className="btn" disabled={pending}>{pending ? '保存中…' : 'API キーを保存'}</button>
-      </div>
-      <Notice state={state} />
+    <tr>
+      <td colSpan={4}>
+        <form action={run} className="key-form">
+          <input name="label" className="input" placeholder="名前（例: Claude API）" maxLength={40} autoComplete="off" />
+          <input name="envName" className="input mono" placeholder="環境変数名（例: ANTHROPIC_API_KEY）" maxLength={64} autoComplete="off" />
+          <input name="value" type="password" className="input" placeholder="値（例: sk-ant-…）" autoComplete="off" />
+          <button className="btn primary" disabled={pending}>{pending ? '保存中…' : '保存'}</button>
+          <button type="button" className="btn" onClick={onCancel}>やめる</button>
+        </form>
+        {state && !state.ok && <p className="notice ng">{state.message}</p>}
+      </td>
+    </tr>
+  );
+}
+
+function DeleteKeyButton({ action, label }: { action: () => Promise<ActionState>; label: string }) {
+  const [state, run, pending] = useActionState<ActionState>(async () => action(), null);
+  return (
+    <form action={run} onSubmit={(e) => !window.confirm(`「${label}」の API キーを消します。よろしいですか？`) && e.preventDefault()}>
+      <button className="icon-btn sm danger" disabled={pending} title="消す" aria-label={`${label} を消す`}>
+        <Trash2 size={14} />
+      </button>
+      {state && !state.ok && <span className="notice ng">{state.message}</span>}
     </form>
   );
 }
 
-export function PathsForm({ action, values }: { action: Action; values: { claudeBinPath: string; antigravityBinPath: string; claudeDefault: string; antigravityDefault: string } }) {
-  const [state, run, pending] = useActionState(action, null);
+// API キーの一覧。＋で行を足し、名前・環境変数名・値を入れて保存する（値は .env.local に保存し、末尾4文字だけ表示）
+export function ApiKeysTable({
+  rows,
+  add,
+  remove,
+}: {
+  rows: KeyRow[];
+  add: Action;
+  remove: (envName: string) => Promise<ActionState>;
+}) {
+  const [drafts, setDrafts] = useState<number[]>([]);
+  const [nextId, setNextId] = useState(0);
+  const addDraft = () => {
+    setDrafts([...drafts, nextId]);
+    setNextId(nextId + 1);
+  };
+  const dropDraft = (id: number) => setDrafts(drafts.filter((d) => d !== id));
   return (
-    <form action={run} className="stack" style={{ gap: 10 }}>
-      <label className="field">
-        <span>Claude Code の場所</span>
-        <input name="claudeBinPath" className="input" defaultValue={values.claudeBinPath} placeholder={values.claudeDefault} />
-      </label>
-      <label className="field">
-        <span>Antigravity の場所</span>
-        <input name="antigravityBinPath" className="input" defaultValue={values.antigravityBinPath} placeholder={values.antigravityDefault} />
-      </label>
-      <div className="row between">
-        <span className="muted">空欄なら既定の場所（薄く表示しているもの）を使います</span>
-        <button className="btn" disabled={pending}>{pending ? '保存中…' : '保存する'}</button>
+    <div className="stack" style={{ gap: 8 }}>
+      <table>
+        <thead>
+          <tr><th>名前</th><th>環境変数名</th><th>値</th><th aria-label="操作" /></tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && drafts.length === 0 && (
+            <tr><td colSpan={4} className="muted">まだ登録していません。＋で追加します。</td></tr>
+          )}
+          {rows.map((r) => (
+            <tr key={r.envName}>
+              <td>
+                {r.label}
+                {r.usedBy && <span className="badge ok" style={{ marginLeft: 8 }}>{r.usedBy}で使用</span>}
+              </td>
+              <td className="mono">{r.envName}</td>
+              <td className="mono">{r.masked ?? <span className="muted">（値なし）</span>}</td>
+              <td style={{ width: 40 }}><DeleteKeyButton action={() => remove(r.envName)} label={r.label} /></td>
+            </tr>
+          ))}
+          {drafts.map((id) => (
+            <NewKeyRow key={id} action={add} onDone={() => dropDraft(id)} onCancel={() => dropDraft(id)} />
+          ))}
+        </tbody>
+      </table>
+      <div>
+        <button type="button" className="btn" onClick={addDraft}>
+          <Plus size={14} />
+          キーを追加
+        </button>
       </div>
-      <Notice state={state} />
-    </form>
+    </div>
   );
 }

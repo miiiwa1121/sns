@@ -353,3 +353,10 @@ body.resizing { cursor: col-resize; user-select: none; }
 .icon-btn.danger { color: var(--danger); }
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+/* AI 連携 */
+.ai-group { display: flex; flex-direction: column; gap: 12px; }
+.ai-group > h2 { margin: 8px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.key-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr) auto auto; gap: 8px; align-items: center; }
+@media (max-width: 860px) { .key-form { grid-template-columns: minmax(0, 1fr); } }
+td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }

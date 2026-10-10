@@ -222,8 +222,6 @@ model AppSetting {
   aiWorkshopModel     String    @default("")
   aiEditProvider      String    @default("claude-code") // 動画編集の手直し: 同上
   aiEditModel         String    @default("")
-  claudeBinPath       String? // Claude Code の場所（空なら ~/.local/bin/claude）
-  antigravityBinPath  String? // Antigravity の場所（空なら既定の場所）
   updatedAt           DateTime  @updatedAt
 }
 
@@ -293,4 +291,12 @@ model ProjectEditMessage {
   createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// 15. AI 連携で登録した API キー（管理画面の「AI 連携」→ API）。値は .env.local に保存し、ここには名前と環境変数名だけを持つ
+model ApiKeyEntry {
+  id        String   @id @default(cuid())
+  label     String // 自由な名前（例: 「Claude API」）
+  envName   String   @unique // 環境変数名（例: ANTHROPIC_API_KEY）
+  createdAt DateTime @default(now())
 }

@@ -20,3 +20,15 @@ export function saveEnvValues(values: Record<string, string>): void {
   }
   fs.writeFileSync(ENV_FILE, content, { mode: 0o600 });
 }
+
+/** .env.local から値を行ごと消し、動いているサーバーの process.env からも消す */
+export function removeEnvValues(keys: string[]): void {
+  if (!fs.existsSync(ENV_FILE)) return;
+  let content = fs.readFileSync(ENV_FILE, 'utf-8');
+  for (const key of keys) {
+    if (!/^[A-Z0-9_]+$/.test(key)) throw new Error(`環境変数名が不正です: ${key}`);
+    content = content.replace(new RegExp(`^${key}=.*(\\r?\\n|$)`, 'm'), '');
+    delete process.env[key];
+  }
+  fs.writeFileSync(ENV_FILE, content, { mode: 0o600 });
+}

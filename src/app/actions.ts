@@ -16,13 +16,13 @@ import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS }
 import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
-import { saveEnvValues } from '@/lib/envFile';
+import { removeEnvValues, saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
 import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
 import { postEditChat, saveScript, startRender, stopEditChat, stopRender } from '@/lib/services/editService';
 import type { ScriptLine } from '@/lib/script';
 import { PING_SCHEMA } from '@/lib/ai/schemas';
-import { PROVIDER_LABEL, PURPOSE_PROVIDERS, apiKeyEnvName, runProviderJson, type AiProvider, type AiPurpose } from '@/lib/ai/providers';
+import { PROVIDER_LABEL, PURPOSE_PROVIDERS, runProviderJson, validateApiKeyEntry, type AiProvider, type AiPurpose } from '@/lib/ai/providers';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -399,31 +399,22 @@ export async function saveAiAssignments(_prev: ActionState, formData: FormData):
   return done('保存しました');
 }
 
-export async function saveAiPaths(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const get = (k: string) => String(formData.get(k) ?? '').trim();
-  const paths = { claudeBinPath: get('claudeBinPath') || null, antigravityBinPath: get('antigravityBinPath') || null };
-  for (const p of Object.values(paths)) {
-    if (p && !p.startsWith('/')) return fail('場所は / から始まる絶対パスで入力してください（空なら既定の場所）');
-  }
-  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...paths }, update: paths });
-  return done('保存しました');
+export async function addApiKey(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const label = String(formData.get('label') ?? '').trim();
+  const envName = String(formData.get('envName') ?? '').trim().toUpperCase();
+  const value = String(formData.get('value') ?? '').trim();
+  const error = validateApiKeyEntry(label, envName, value);
+  if (error) return fail(error);
+  saveEnvValues({ [envName]: value });
+  await prisma.apiKeyEntry.upsert({ where: { envName }, create: { label, envName }, update: { label } });
+  return done(`${label}（${envName}）を保存しました`);
 }
 
-export async function saveAiApiKey(provider: AiProvider, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const env = apiKeyEnvName(provider);
-  if (!env) return fail('この AI には API キーがありません');
-  const key = String(formData.get('apiKey') ?? '').trim();
-  if (!key) return fail('API キーを入力してください');
-  if (!/^[A-Za-z0-9._-]{10,300}$/.test(key)) return fail('API キーの形が正しくありません');
-  saveEnvValues({ [env]: key });
-  return done('API キーを保存しました。「接続テスト」で動くか確かめてください');
-}
-
-export async function clearAiApiKey(provider: AiProvider): Promise<ActionState> {
-  const env = apiKeyEnvName(provider);
-  if (!env) return fail('この AI には API キーがありません');
-  saveEnvValues({ [env]: '' });
-  return done('API キーを消しました');
+export async function deleteApiKey(envName: string): Promise<ActionState> {
+  if (!/^[A-Z][A-Z0-9_]{1,63}$/.test(envName)) return fail('環境変数名が正しくありません');
+  removeEnvValues([envName]);
+  await prisma.apiKeyEntry.deleteMany({ where: { envName } });
+  return done(`${envName} を消しました`);
 }
 
 export async function testAiProvider(provider: AiProvider, model: string): Promise<ActionState> {
