@@ -42,7 +42,6 @@ export default async function TemplatesPage() {
           );
         })}
       </div>
-
     </div>
   );
 }
