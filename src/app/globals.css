@@ -249,11 +249,28 @@ video { width: 100%; max-width: 320px; border-radius: 12px; background: #000; di
 .sheet tbody tr:hover td { background: var(--surface-2); }
 .sheet-thumb { width: 27px; height: 48px; object-fit: cover; border-radius: 4px; display: block; }
 
-/* 構成案の相談（左: 会話 / 右: 試作と下書き） */
-.page.wide-page { max-width: 1240px; }
-.workshop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 1100px) { .workshop { grid-template-columns: minmax(0, 1fr); } }
-.chat { display: flex; flex-direction: column; gap: 10px; max-height: 60dvh; overflow-y: auto; }
+/* 構成案の相談（左: 下書き / 中央: 試作 / 右: 相談）。左右の幅は境目のドラッグで変える */
+.page.full-page { max-width: none; gap: 14px; }
+.ws-cols {
+  display: grid; grid-template-columns: var(--ws-left) 8px minmax(320px, 1fr) 8px var(--ws-right);
+  height: calc(100dvh - 210px); min-height: 520px;
+}
+.ws-col { min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 2px 4px; }
+.ws-handle { cursor: col-resize; position: relative; touch-action: none; }
+.ws-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: 2px; background: var(--border); transition: background 0.15s; }
+.ws-handle:hover::after, body.resizing .ws-handle::after { background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
+.ws-chat { overflow: hidden; }
+.ws-chat-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.ws-chat-card .chat { flex: 1; min-height: 0; overflow-y: auto; }
+.ws-player { width: min(100%, 300px); flex-shrink: 0; }
+@media (max-width: 1100px) {
+  .ws-cols { display: flex; flex-direction: column; height: auto; gap: 16px; }
+  .ws-handle { display: none; }
+  .ws-col, .ws-chat { overflow: visible; }
+  .ws-chat-card .chat { max-height: 60dvh; }
+}
+.chat { display: flex; flex-direction: column; gap: 10px; }
 .bubble { padding: 10px 14px; border-radius: 14px; font-size: 14px; max-width: 92%; }
 .bubble.user { align-self: flex-end; background: var(--accent-soft); }
 .bubble.assistant { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
