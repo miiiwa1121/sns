@@ -18,8 +18,6 @@ async function main() {
       category: 'AI・IT',
       concept: '目まぐるしく進化する最新テックやAIトレンドについていくのが精一杯な人のための、手軽に追えるキャッチアップ動画媒体',
       targetAudience: '最新のAI・ITトレンドを追いたいが、情報量が多くて追いきれない人',
-      toneOfVoice: '親しみやすく、肩の力が抜けた分かりやすい語り口',
-      systemPromptRules: '冒頭2秒で「何の最新テックか」「なぜ今注目されているか」をフックする。難しい専門用語には必ず1行の比喩を添える。',
       platformConnections: {
         create: [
           { platform: 'youtube', handle: BASE_HANDLE, isConnected: true },

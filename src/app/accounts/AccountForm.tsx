@@ -2,6 +2,10 @@
 
 import { useActionState } from 'react';
 import type { ActionState } from '../actions';
+import { PLATFORM_LABEL, type PlatformType } from '@/lib/types';
+
+// ハンドルを入れる SNS（投稿の検証は当面 YouTube のみだが、ハンドルは全媒体ぶん持っておく）
+const HANDLE_PLATFORMS: PlatformType[] = ['youtube', 'tiktok', 'instagram', 'x'];
 
 type Values = {
   name?: string;
@@ -9,10 +13,8 @@ type Values = {
   category?: string;
   concept?: string;
   targetAudience?: string;
-  toneOfVoice?: string;
-  systemPromptRules?: string | null;
   defaultTemplateId?: string | null;
-  youtubeHandle?: string;
+  handles?: Partial<Record<PlatformType, string>>;
 };
 
 type TemplateOption = { id: string; name: string };
@@ -29,7 +31,7 @@ export function AccountForm({
   templates: TemplateOption[];
 }) {
   const [state, run, pending] = useActionState(action, null);
-  const field = (name: keyof Values, label: string, opts: { multiline?: boolean; placeholder?: string; hint?: string } = {}) => (
+  const field = (name: 'name' | 'slug' | 'category' | 'concept' | 'targetAudience', label: string, opts: { multiline?: boolean; placeholder?: string; hint?: string } = {}) => (
     <div className="field">
       <label htmlFor={name}>{label}</label>
       {opts.multiline ? (
@@ -47,16 +49,25 @@ export function AccountForm({
       {field('category', 'カテゴリ', { placeholder: 'AI・IT' })}
       {field('concept', 'コンセプト', { multiline: true, hint: 'AI が話題選びと台本づくりに使います' })}
       {field('targetAudience', '想定する視聴者', { multiline: true })}
-      {field('toneOfVoice', '話し方', { placeholder: '例: 親しみやすく、肩の力が抜けた分かりやすい語り口' })}
-      {field('systemPromptRules', '台本のルール（任意）', { multiline: true })}
       <div className="field">
         <label htmlFor="defaultTemplateId">既定の構成案</label>
         <select id="defaultTemplateId" name="defaultTemplateId" className="input" defaultValue={values.defaultTemplateId ?? templates[0]?.id}>
           {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <span className="muted">依頼するときに選び直せます。構成案の中身は「構成案」の画面で編集します</span>
+        <span className="muted">依頼するときに選び直せます。話し方・台本のルール・尺や流れは、構成案で決めます</span>
       </div>
-      {field('youtubeHandle', 'YouTube ハンドル', { placeholder: '@example' })}
+      <div className="field">
+        <label>SNS のハンドル</label>
+        <div className="handle-grid">
+          {HANDLE_PLATFORMS.map((p) => (
+            <label key={p} className="handle-row">
+              <span>{PLATFORM_LABEL[p]}</span>
+              <input name={`handle_${p}`} className="input" defaultValue={values.handles?.[p] ?? ''} placeholder="@example" />
+            </label>
+          ))}
+        </div>
+        <span className="muted">動画の画面下に出すハンドルは YouTube のものです</span>
+      </div>
       <div>
         <button className="btn primary" disabled={pending}>{pending ? '保存中…' : isNew ? 'アカウントを追加する' : '保存する'}</button>
       </div>

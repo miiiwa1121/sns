@@ -23,8 +23,6 @@ async function main() {
       category: 'テクノロジー / テックニュース',
       concept: '国内外の最新テクノロジー、AIエージェント、ガジェット、Webトレンドを最短でキャッチアップできる速報チャンネル',
       targetAudience: '20〜40代 ITエンジニア、ビジネスパーソン、最新テクノロジーに関心が高いクリエイター',
-      toneOfVoice: '先見性がありスマート、スピーディで知的好奇心を刺激する語り口',
-      systemPromptRules: '冒頭2秒で「何の最新テックか」「なぜ今世界で注目されているか」を簡潔にフックする。専門用語には即座に1行の分かりやすい比喩や具体例を添える。',
       platformConnections: {
         create: [
           { platform: 'youtube', handle: '@TechPulse-jp', isConnected: true },

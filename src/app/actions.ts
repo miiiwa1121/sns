@@ -179,11 +179,13 @@ function accountFields(formData: FormData) {
     category: get('category') || 'AI・IT',
     concept: get('concept'),
     targetAudience: get('targetAudience'),
-    toneOfVoice: get('toneOfVoice'),
-    systemPromptRules: get('systemPromptRules') || null,
     defaultTemplateId: get('defaultTemplateId') || null,
-    youtubeHandle: get('youtubeHandle'),
   };
+}
+
+// SNS ごとのハンドル（入力欄 handle_<platform>）
+function handleFields(formData: FormData): Record<PlatformType, string> {
+  return Object.fromEntries(PLATFORMS.map((p) => [p, String(formData.get(`handle_${p}`) ?? '').trim().slice(0, 100)])) as Record<PlatformType, string>;
 }
 
 async function validateTemplateRef(templateId: string | null): Promise<string | null> {
@@ -195,7 +197,6 @@ function validateAccount(f: ReturnType<typeof accountFields>): string | null {
   if (!f.name || f.name.length > 50) return 'アカウント名は1〜50文字で入力してください';
   if (!f.concept) return 'コンセプトを入力してください（台本づくりに使います）';
   if (!f.targetAudience) return '想定する視聴者を入力してください';
-  if (!f.toneOfVoice) return '話し方を入力してください';
   return null;
 }
 
@@ -207,13 +208,13 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
   if (error) return fail(error);
   if (await prisma.account.findUnique({ where: { slug } })) return fail('この ID は使われています');
 
-  const { youtubeHandle, ...data } = f;
+  const handles = handleFields(formData);
   await prisma.account.create({
     data: {
-      ...data,
+      ...f,
       slug,
       platformConnections: {
-        create: PLATFORMS.map((platform) => ({ platform, handle: platform === 'youtube' ? youtubeHandle : '', isConnected: false })),
+        create: PLATFORMS.map((platform) => ({ platform, handle: handles[platform], isConnected: false })),
       },
     },
   });
@@ -227,10 +228,14 @@ export async function updateAccount(accountId: string, _prev: ActionState, formD
   const f = accountFields(formData);
   const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId));
   if (error) return fail(error);
-  const { youtubeHandle, ...data } = f;
-  await prisma.account.update({ where: { id: accountId }, data });
-  const conn = await prisma.platformConnection.findFirst({ where: { accountId, platform: 'youtube' } });
-  if (conn) await prisma.platformConnection.update({ where: { id: conn.id }, data: { handle: youtubeHandle } });
+  await prisma.account.update({ where: { id: accountId }, data: f });
+  const handles = handleFields(formData);
+  const conns = await prisma.platformConnection.findMany({ where: { accountId } });
+  for (const platform of PLATFORMS) {
+    const conn = conns.find((c) => c.platform === platform);
+    if (conn) await prisma.platformConnection.update({ where: { id: conn.id }, data: { handle: handles[platform] } });
+    else await prisma.platformConnection.create({ data: { accountId, platform, handle: handles[platform], isConnected: false } });
+  }
   return done('保存しました');
 }
 

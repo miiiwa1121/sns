@@ -35,8 +35,7 @@ erDiagram
 - `category` (String): メインカテゴリ（例: `AI・IT`）
 - `concept` (String): チャンネルの基本コンセプト
 - `targetAudience` (String): ペルソナ・ターゲット層
-- `toneOfVoice` (String): トーン＆マナー
-- `systemPromptRules` (String?): 台本生成時にAIへ強制適用するルール
+- 話し方・台本のルールは持たない（構成案で決める。2026-10-10 に移した）
 - `defaultTemplateId` (String?): 既定の構成案（`StructureTemplate`）。依頼時に選び直せる。未設定なら構成案一覧の先頭を使う
 - `isActive` (Boolean): 有効フラグ
 

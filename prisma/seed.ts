@@ -24,8 +24,6 @@ async function main() {
       category: 'AI・IT',
       concept: '最新AIツール（Gemini, Claude, Cursor, 動画生成AI等）の現場活用法を速報解説',
       targetAudience: '20〜40代 ITエンジニア、ビジネスパーソン、マーケター',
-      toneOfVoice: '先見性がありスピーディ、結論先出し、無駄のない知的な語り口',
-      systemPromptRules: '冒頭2秒で「何の作業が何分短縮されるか」を断言する。専門用語には即座に具体例を添える。',
       platformConnections: {
         create: [
           { platform: 'youtube', handle: '@ai_pulse_lab', isConnected: true },
@@ -127,8 +125,6 @@ async function main() {
       category: 'AI・IT / キャリア',
       concept: '未経験・非エンジニア向けに、AIやプログラミングで収入を上げる最短ロードマップを解説',
       targetAudience: '20代 未経験転職希望者、文系学生、リスキリングを目指す社会人',
-      toneOfVoice: '親しみやすく丁寧、失敗しない安心感、具体的で実践しやすい語り口',
-      systemPromptRules: '専門用語を一切使わず身近な例え（料理や日常会話）に置き換える。最後は「今日すぐできる1つの行動」で締める。',
       platformConnections: {
         create: [
           { platform: 'youtube', handle: '@techstart_jp', isConnected: true },

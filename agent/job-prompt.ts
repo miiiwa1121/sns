@@ -11,8 +11,6 @@ export interface JobPromptInput {
     name: string;
     concept: string;
     targetAudience: string;
-    toneOfVoice: string;
-    systemPromptRules: string | null;
   };
   // 構成案（管理画面の「構成案」で編集する部分）。指示書の「構成案」節にそのまま入る
   template: { name: string; body: string };
@@ -31,8 +29,6 @@ export function buildJobPrompt(i: JobPromptInput): string {
 ## チャンネル
 - コンセプト: ${i.channel.concept}
 - 視聴者: ${i.channel.targetAudience}
-- 話し方: ${i.channel.toneOfVoice}
-- 台本のルール: ${i.channel.systemPromptRules || '（なし）'}
 
 ## 今回の依頼
 ${theme}

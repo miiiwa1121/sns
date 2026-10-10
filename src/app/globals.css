@@ -320,3 +320,8 @@ body.resizing { cursor: col-resize; user-select: none; }
   .ws-player { height: 70dvh; flex: none; }
   .chat { max-height: 60dvh; }
 }
+
+/* アカウント: SNS のハンドル */
+.handle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+@media (max-width: 640px) { .handle-grid { grid-template-columns: minmax(0, 1fr); } }
+.handle-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--sub); }

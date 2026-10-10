@@ -18,8 +18,6 @@ model Account {
   category          String // メインカテゴリ (例: "AI・IT")
   concept           String // チャンネルコンセプト
   targetAudience    String // 想定ペルソナ・ターゲット層
-  toneOfVoice       String // トーン＆マナー (例: 「スピーディ・毒舌・明快」)
-  systemPromptRules String? // 台本生成時に強制適用するプロンプト規則
   defaultTemplateId String? // 既定の構成案（依頼時に選び直せる）
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())

@@ -63,7 +63,7 @@ export default async function AccountPage({
         <h2>設定</h2>
         <AccountForm
           action={updateAccount.bind(null, account.id)}
-          values={{ ...account, youtubeHandle: yt?.handle ?? '' }}
+          values={{ ...account, handles: Object.fromEntries(account.platformConnections.map((c) => [c.platform, c.handle])) }}
           templates={templates}
         />
       </section>

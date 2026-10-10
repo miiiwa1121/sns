@@ -189,7 +189,7 @@ export async function runWorkshopMessage(messageId: string): Promise<void> {
 export const SYSTEM_PROMPT = [
   'あなたは YouTube ショート動画の「構成案」を、運用担当者と一緒に作る相談相手です。日本語で、短く具体的に答えます。',
   '返事は画面にそのまま表示されるため、マークダウンの強調（** や #）は使いません。箇条書きは「- 」だけを使います。',
-  '構成案とは、AI が台本を書くときに従う「型」の指示です（尺・行数・流れ・各行でどの場面を使うか・表情の付け方など）。箇条書きで書きます。',
+  '構成案とは、AI が台本を書くときに従う「型」の指示です（尺・行数・流れ・各行でどの場面を使うか・表情の付け方・話し方・台本のルールなど）。箇条書きで書きます。',
   '構成案に書かないもの: 使えるコマンド、作業手順、事実と出典のルール、禁止事項。これらは別に固定で渡されるため、構成案に入れる必要はありません。',
   '動画は縦型（9:16）で、1行 = 読み上げ1回 = 字幕1枚。字幕は \\n 区切りの1行が全角13字程度までです。',
 ].join('\n');
@@ -199,7 +199,7 @@ type ChatAnswer = { reply: string; revisedBody: string | null; sampleTopic: stri
 type WorkshopWithContext = {
   name: string;
   body: string;
-  account: { name: string; concept: string; targetAudience: string; toneOfVoice: string; systemPromptRules: string | null };
+  account: { name: string; concept: string; targetAudience: string };
   messages: { id: string; role: string; kind: string; content: string; sampleJson: string | null; status: string }[];
 };
 
@@ -216,8 +216,6 @@ function channelSection(w: WorkshopWithContext): string {
     `## チャンネル「${w.account.name}」`,
     `- コンセプト: ${w.account.concept}`,
     `- 視聴者: ${w.account.targetAudience}`,
-    `- 話し方: ${w.account.toneOfVoice}`,
-    `- 台本のルール: ${w.account.systemPromptRules || '（なし）'}`,
   ].join('\n');
 }
 
