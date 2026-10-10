@@ -21,6 +21,8 @@ erDiagram
     ShortClip ||--o{ PublishLog : "1:N"
 ```
 
+`AgentJob`（依頼）と `AppSetting`（サービス全体の設定）は図に含めていない。
+
 ---
 
 ## 2. 各テーブルの責務と主要カラム
@@ -125,6 +127,13 @@ YouTube向けの横型マスター動画。
 - `ruleText`: 学習知見ルール
 - `confidenceScore`: 信頼度スコア (0.0〜1.0)
 - `appliedCount`: 次回企画への適用回数
+
+### 10. `AppSetting` (サービス全体の設定)
+1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
+- `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
+- `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）
+- `cleanupIncludeVideo`: 作業ファイルに加えて動画・サムネも消すか（既定 false）
+- `lastCleanupAt` / `lastCleanupBytes`: 最後に整理した日時と、消した量（バイト）
 
 ---
 

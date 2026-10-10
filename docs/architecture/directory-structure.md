@@ -31,7 +31,7 @@ data/
   scratch/                     手作業のリサーチ・台本の JSON など。置き場所は自由
 ```
 
-- 企画を片付けるときは `data/projects/<projectId>/` をフォルダごと消せばよい。古いものの削除は `npm run agent -- clean`（[runbook 9](../operations/agent-runbook.md)）。画面の「企画を削除」は DB の行とこのフォルダを一緒に消す。
+- 企画を片付けるときは `data/projects/<projectId>/` をフォルダごと消せばよい。古いものの整理は管理画面の「設定」で行う（処理は `src/lib/services/cleanupService.ts`。[runbook 9](../operations/agent-runbook.md)）。画面の「企画を削除」は DB の行とこのフォルダを一緒に消す。
 - `<projectId>` などの ID は Prisma の `cuid()` が作る DB の主キーで、意味のある名前ではない。
 - DB の `ShortClip.renderedFilePath` には `data/` からの相対パス（`projects/<id>/video.mp4`）を保存する。DB が持つのは場所だけで、ファイル本体は `data/` にある。DB の行を消してもファイルは消えない（逆も同じ）。
 - パスの組み立ては `src/lib/storage.ts` に集約している。直接 `data/...` を書かない。

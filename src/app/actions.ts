@@ -15,6 +15,7 @@ import { PLATFORM_LABEL, PlatformType } from '@/lib/types';
 import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS } from '@/lib/services/publishService';
 import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
 import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
+import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -217,4 +218,22 @@ export async function updateAccount(accountId: string, _prev: ActionState, formD
   const conn = await prisma.platformConnection.findFirst({ where: { accountId, platform: 'youtube' } });
   if (conn) await prisma.platformConnection.update({ where: { id: conn.id }, data: { handle: youtubeHandle } });
   return done('保存しました');
+}
+
+// ---------- 設定（生成物の整理） ----------
+
+export async function saveCleanup(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const days = Number(formData.get('days'));
+  if (!Number.isInteger(days) || days < 1 || days > 3650) return fail('日数は 1〜3650 の整数で入力してください');
+  await saveCleanupSettings({
+    auto: formData.get('auto') === 'on',
+    days,
+    includeVideo: formData.get('includeVideo') === 'on',
+  });
+  return done('保存しました');
+}
+
+export async function cleanupNow(): Promise<ActionState> {
+  const { removed, bytes } = await runCleanup();
+  return done(removed === 0 ? '整理する対象はありませんでした' : `${removed} 件・${formatBytes(bytes)} を削除しました`);
 }

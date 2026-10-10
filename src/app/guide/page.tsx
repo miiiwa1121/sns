@@ -35,6 +35,7 @@ export default function GuidePage() {
         <strong>知っておくこと</strong>
         <p className="lead">・YouTube への投稿は、YouTube の仕様で最初は非公開になります。公開は YouTube Studio で切り替えます。</p>
         <p className="lead">・動画の声は VOICEVOX のずんだもんです。投稿文にクレジットが自動で入ります。消さないでください。</p>
+        <p className="lead">・作った動画や作業ファイルはこのパソコンに保存されます。古いものは「設定」で整理できます（自動整理もできます）。</p>
         <p className="lead">・右上のボタンで、画面の配色（白×水色 / 黒×オレンジ）を切り替えられます。</p>
       </div>
     </div>

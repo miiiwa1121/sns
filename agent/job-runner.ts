@@ -8,6 +8,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { prisma } from '../src/lib/prisma';
 import { jobDir, DATA_DIR } from '../src/lib/storage';
+import { runAutoCleanup } from '../src/lib/services/cleanupService';
 import { buildJobPrompt } from './job-prompt';
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
@@ -22,6 +23,8 @@ export function jobWorkDir(jobId: string): string {
 
 async function finish(jobId: string, status: 'succeeded' | 'failed', error?: string) {
   await prisma.agentJob.update({ where: { id: jobId }, data: { status, error: error ?? null, finishedAt: new Date(), pid: null } });
+  // 設定で自動整理が有効なら、古い生成物を整理する（失敗しても依頼の結果には影響させない）
+  await runAutoCleanup().catch((e) => console.error('自動整理に失敗しました', e));
 }
 
 async function main() {
