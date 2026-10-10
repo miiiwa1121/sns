@@ -267,6 +267,7 @@ async function projectUpdate(projectId: string, file: string) {
         hookSentence: spec.lines[0].caption ?? spec.lines[0].text,
         scriptJson: JSON.stringify(spec.lines),
         renderedFilePath: null,
+        renderedScriptJson: null,
         readyToPublish: false,
       },
     }),
@@ -315,6 +316,8 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
       where: { id: clip.id },
       data: {
         renderedFilePath: result.videoRelPath,
+        // どの台本で作った動画か（台本を直した後に作り直したかの判定に使う）
+        renderedScriptJson: clip.scriptJson,
         durationSec: Math.round(result.durationSec),
         endTimeSec: Math.round(result.durationSec),
         // 作り直したら承認はやり直し

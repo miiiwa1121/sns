@@ -12,8 +12,9 @@ import {
   stopWorkshopAction,
 } from '../../../actions';
 import { AutoRefresh } from '../../../jobs/[id]/client';
-import { ChatForm, PromptViewer, SamplePreview, WorkshopHeader } from './client';
-import { ChatScroll, ResizableColumns } from './columns';
+import { PromptViewer, SamplePreview, WorkshopHeader } from './client';
+import { ChatScroll, ResizableColumns } from '@/app/components/workspace';
+import { ChatForm } from '@/app/components/chat';
 
 // 構成案を AI と相談しながら作る画面。
 // ヘッダー: 戻る・名前（その場で変更）・試作する／停止・自動保存の表示・削除（構成案ごと）
@@ -70,6 +71,7 @@ export default async function WorkshopPage({
       />
 
       <ResizableColumns
+        storageKey="workshop-columns"
         left={
           <section className="card ws-fill-card">
             <PromptViewer
@@ -138,7 +140,7 @@ export default async function WorkshopPage({
                 </div>
               ))}
             </ChatScroll>
-            <ChatForm action={sendWorkshopChat.bind(null, workshop.id)} disabled={busy} />
+            <ChatForm action={sendWorkshopChat.bind(null, workshop.id)} disabled={busy} placeholder="例: 冒頭2行で結論を言い切る型にして試作して / 5行目が長いので行数を減らして" />
           </section>
         }
       />

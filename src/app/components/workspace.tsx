@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 
-// 幅を変えられる3列（左・中央・右）。左右の列の幅を境目のドラッグで変え、このブラウザに覚えておく（ダブルクリックで元に戻す）。
+// 作業画面（構成案の相談・動画編集）の共通部品。
+// 幅を変えられる3列（左・中央・右）。左右の列の幅を境目のドラッグで変え、このブラウザに画面ごとに覚えておく（ダブルクリックで元に戻す）。
 // 幅は CSS 変数（--ws-left / --ws-right）に直接書く（ドラッグ中に React の再描画を起こさないため）。
 // 狭い画面では縦に積む（境目は出さない）
-const STORAGE_KEY = 'workshop-columns';
 const DEFAULT = { left: 340, right: 400 };
 const MIN = 240;
 const CENTER_MIN = 320;
@@ -13,7 +13,17 @@ const HANDLE = 8;
 
 type Widths = typeof DEFAULT;
 
-export function ResizableColumns({ left, center, right }: { left: React.ReactNode; center: React.ReactNode; right: React.ReactNode }) {
+export function ResizableColumns({
+  storageKey,
+  left,
+  center,
+  right,
+}: {
+  storageKey: string; // 幅を覚えておく localStorage のキー（画面ごと）
+  left: React.ReactNode;
+  center: React.ReactNode;
+  right: React.ReactNode;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const widths = useRef<Widths>(DEFAULT);
 
@@ -25,7 +35,7 @@ export function ResizableColumns({ left, center, right }: { left: React.ReactNod
 
   const save = (next: Widths) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(storageKey, JSON.stringify(next));
     } catch {
       // 保存できない環境（プライベートブラウズ等）でも幅の変更自体は効く
     }
@@ -33,12 +43,12 @@ export function ResizableColumns({ left, center, right }: { left: React.ReactNod
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
       if (saved && typeof saved.left === 'number' && typeof saved.right === 'number') apply(saved);
     } catch {
       // 読めなければ既定の幅のまま
     }
-  }, []);
+  }, [storageKey]);
 
   const startDrag = (side: 'left' | 'right') => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();

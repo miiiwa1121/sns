@@ -94,6 +94,8 @@ YouTube向けの横型マスター動画。
 - `estimatedRetentionRate`: 予測視聴維持率（%）
 - `scriptJson`: ショートの台本 `[{ text, caption? }]`。1要素 = 読み上げ1行 = 字幕1枚
 - `renderedFilePath`: レンダリング済み MP4 の `data/` からの相対パス（例: `projects/<id>/video.mp4`）。`POST /api/publish` はこのファイルを配信する
+- `renderedScriptJson`: 今の動画を作ったときの台本。`scriptJson` と違えば、台本を直した後まだ作り直していない（その間は承認できない）
+- `renderStatus` / `renderPid` / `renderError`: 動画編集画面からの作り直しの状態（`idle` / `rendering` / `failed`）・止めるためのプロセスグループ・失敗の理由
 - `readyToPublish`: 配信対象かどうか
 
 ### 7. `PublishLog` (配信ログ & スケジュール)
@@ -145,7 +147,10 @@ YouTube向けの横型マスター動画。
 - `proposedBody`: AI が出した構成の指示の修正案（構成案に保存済み）
 - `sampleTopic` / `sampleJson`: 試作の話題と台本 `{ title, lines }`
 
-### 12. `AppSetting` (サービス全体の設定)
+### 12. `ProjectEditMessage` (動画編集で AI に頼んだ記録)
+動画編集画面の右の列のやりとり。`role`（user / assistant）、`content`、`linesJson`（AI が直した台本の全行。台本に反映済み）、`status`（pending / done / failed / canceled）、`pid`（停止用）。AI の発言は `agent/edit-runner.ts` が埋める。
+
+### 13. `AppSetting` (サービス全体の設定)
 1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
 - `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）

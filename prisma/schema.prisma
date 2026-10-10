@@ -79,14 +79,15 @@ model Project {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  account       Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  trendResearch TrendResearch?     @relation(fields: [trendResearchId], references: [id], onDelete: SetNull)
-  template      StructureTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  account       Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  trendResearch TrendResearch?       @relation(fields: [trendResearchId], references: [id], onDelete: SetNull)
+  template      StructureTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
   longFormVideo LongFormVideo?
   shortClips    ShortClip[]
   publishLogs   PublishLog[]
   analytics     AnalyticsMetric[]
   agentJobs     AgentJob[]
+  editMessages  ProjectEditMessage[]
 }
 
 // 5. 長尺動画マスター構成・台本
@@ -120,6 +121,10 @@ model ShortClip {
   bgmTrack               String?
   scriptJson             String? // ナレーション行 [{ text, caption? }] の JSON（ショート単体の台本）
   renderedFilePath       String? // レンダリング済み MP4 の data/ からの相対パス（例: projects/<id>/video.mp4。配信対象）
+  renderedScriptJson     String? // 今の動画を作ったときの台本（scriptJson と違えば、台本を直した後まだ作り直していない）
+  renderStatus           String   @default("idle") // 動画の作り直し: "idle" | "rendering" | "failed"
+  renderPid              Int? // 作り直しを動かしているプロセスグループ（停止に使う）
+  renderError            String? // 作り直しに失敗した理由
   readyToPublish         Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -263,4 +268,20 @@ model TemplateWorkshopMessage {
   createdAt    DateTime @default(now())
 
   workshop TemplateWorkshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+}
+
+// 14. 動画編集画面（/projects/[id]/edit）で AI に台本の手直しを頼んだ記録
+// AI の発言は pending で作り、別プロセス（agent/edit-runner.ts）が中身を埋める
+model ProjectEditMessage {
+  id        String   @id @default(cuid())
+  projectId String
+  role      String // "user" | "assistant"
+  content   String   @default("")
+  linesJson String? // AI が直した台本の全行（台本に反映済み）
+  status    String   @default("done") // "pending" | "done" | "failed" | "canceled"
+  pid       Int? // AI を動かしているプロセスグループ（停止に使う）
+  error     String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

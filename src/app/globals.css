@@ -336,3 +336,20 @@ body.resizing { cursor: col-resize; user-select: none; }
 .handle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
 @media (max-width: 640px) { .handle-grid { grid-template-columns: minmax(0, 1fr); } }
 .handle-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--sub); }
+
+/* 動画編集（/projects/[id]/edit）。レイアウトは構成案の相談と共通（.full-page / .ws-*） */
+.ws-scroll { flex: 1; min-height: 0; overflow-y: auto; margin: -4px; padding: 4px; }
+.ws-chat-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.lines-editor { display: flex; flex-direction: column; gap: 10px; }
+.line-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.line-head { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.line-head .spacer { flex: 1; }
+.line-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.line-card .field span { font-size: 12px; color: var(--sub); font-weight: 600; }
+.line-card .input { padding: 6px 10px; font-size: 13px; }
+.line-card textarea.input { min-height: 0; }
+.scene-fields { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-left: 3px solid var(--accent); border-radius: 6px; background: var(--surface); }
+.icon-btn.sm { width: 26px; height: 26px; }
+.icon-btn.danger { color: var(--danger); }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.input.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }

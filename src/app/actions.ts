@@ -19,6 +19,8 @@ import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cle
 import { saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
 import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
+import { postEditChat, saveScript, startRender, stopEditChat, stopRender } from '@/lib/services/editService';
+import type { ScriptLine } from '@/lib/script';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -48,6 +50,9 @@ export async function selectChannel(formData: FormData) {
 export async function approveProject(projectId: string): Promise<ActionState> {
   const clip = await prisma.shortClip.findFirst({ where: { projectId } });
   if (!clip?.renderedFilePath) return fail('動画がまだできていません');
+  // 台本を直した後に作り直していない動画は承認しない（古い動画を承認してしまうため）
+  if (clip.renderStatus === 'rendering') return fail('動画を作り直している途中です。終わってから承認してください');
+  if (clip.renderedScriptJson && clip.renderedScriptJson !== clip.scriptJson) return fail('台本を直した後、動画をまだ作り直していません。動画編集で作り直してから承認してください');
   await prisma.shortClip.update({ where: { id: clip.id }, data: { readyToPublish: true } });
   return done('承認しました');
 }
@@ -347,4 +352,28 @@ export async function deleteWorkshop(workshopId: string): Promise<ActionState> {
   const w = await prisma.templateWorkshop.findUnique({ where: { id: workshopId } });
   if (!w) return fail('相談が見つかりません');
   return deleteTemplate(w.templateId);
+}
+
+// ---------- 動画編集（/projects/[id]/edit） ----------
+
+export async function saveProjectScript(projectId: string, title: string, lines: ScriptLine[]): Promise<ActionState> {
+  const error = await saveScript(projectId, title, lines);
+  return error ? fail(error) : done('保存しました');
+}
+
+export async function renderProject(projectId: string): Promise<ActionState> {
+  const error = await startRender(projectId);
+  return error ? fail(error) : done('作り直しを始めました（数分かかります）');
+}
+
+export async function stopProjectWork(projectId: string): Promise<ActionState> {
+  const [render, chat] = await Promise.all([stopRender(projectId), stopEditChat(projectId)]);
+  return done(render || chat > 0 ? '止めました' : '止める作業はありませんでした');
+}
+
+export async function sendEditChat(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const text = String(formData.get('text') ?? '').trim().slice(0, 2000);
+  if (!text) return fail('直したいことを入力してください');
+  const error = await postEditChat(projectId, text);
+  return error ? fail(error) : done('送りました');
 }

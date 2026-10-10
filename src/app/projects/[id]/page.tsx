@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Pencil } from 'lucide-react';
 import { loadProject, ProjectWithAll } from '@/lib/queries';
 import { nextAction } from '@/lib/workflow';
 import { safeJson } from '@/lib/json';
@@ -91,7 +91,13 @@ function VideoSection({ project, approved }: { project: ProjectWithAll; approved
             ) : (
               <ActionButton action={approveProject.bind(null, project.id)} label="この内容で公開してよい（承認）" pendingLabel="承認中…" primary />
             )}
-            <p className="muted">直したいところがあれば、エージェントに伝えて作り直してもらってください。</p>
+            <div>
+              <Link href={`/projects/${project.id}/edit`} className="btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Pencil size={14} />
+                動画を編集する
+              </Link>
+            </div>
+            <p className="muted">字幕・読み上げ・場面を直したり、AI に直してもらったりして、動画を作り直せます。</p>
           </div>
         </div>
       )}

@@ -2,13 +2,10 @@
 
 import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
-import { Player, Thumbnail } from '@remotion/player';
-import { ArrowLeft, Check, Film, Play, Send, Square, Text, Trash2 } from 'lucide-react';
-import { ShortVideo, TAIL_FRAMES } from '../../../../../remotion/ShortVideo';
-import { toPreviewLines, type ScriptLine } from '@/lib/script';
+import { ArrowLeft, Check, Film, Play, Square, Text, Trash2 } from 'lucide-react';
+import type { ScriptLine } from '@/lib/script';
+import { ScriptPlayer } from '@/app/components/script-preview';
 import type { ActionState } from '@/app/actions';
-
-type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 // ---------- ヘッダー ----------
 
@@ -222,14 +219,6 @@ export function SamplePreview({
   samples: SampleTab[];
 }) {
   const [mode, setMode] = useState<'media' | 'text'>('media');
-  const previewLines = toPreviewLines(lines);
-  const durationInFrames = Math.max(30, previewLines.reduce((acc, l) => acc + l.durationInFrames, 0) + TAIL_FRAMES);
-  const inputProps = { title, brandName, handle, lines: previewLines, bgmSrc: null, credit: null };
-  // 各行の 60% 地点のコマ（確認用静止画と同じ位置）
-  const starts = previewLines.map((_, i) => previewLines.slice(0, i).reduce((acc, l) => acc + l.durationInFrames, 0));
-  const stillFrames = previewLines.map((l, i) => starts[i] + Math.floor(l.durationInFrames * 0.6));
-  const playerKey = `${title}-${lines.length}-${durationInFrames}`;
-  const composition = { component: ShortVideo, inputProps, durationInFrames, compositionWidth: 1080, compositionHeight: 1920, fps: 30 };
 
   return (
     <div className="ws-preview">
@@ -254,30 +243,8 @@ export function SamplePreview({
       </div>
 
       {mode === 'media' ? (
-        <div className="ws-media">
-          <div className="ws-player">
-            <Player
-              key={playerKey}
-              {...composition}
-              controls
-              loop
-              // 0 フレーム目は場面の入りのアニメーション前で何も見えないため、少し進めた位置で止めておく
-              initialFrame={20}
-              style={{ height: '100%', maxWidth: '100%', aspectRatio: '9 / 16', borderRadius: 12, overflow: 'hidden' }}
-              errorFallback={({ error }) => (
-                <div style={{ padding: 24, color: '#b91c1c', fontSize: 28 }}>この試作は表示できませんでした（場面の項目が足りない可能性）: {error.message}</div>
-              )}
-            />
-          </div>
-          <div className="ws-stills" aria-label="各行のコマ">
-            {stillFrames.map((frame, i) => (
-              <figure key={`${playerKey}-${i}`}>
-                <Thumbnail {...composition} frameToDisplay={frame} style={{ width: '100%', aspectRatio: '9 / 16', borderRadius: 6, overflow: 'hidden' }} />
-                <figcaption className="muted">{i + 1}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
+        // 試作を切り替えたら作り直して頭から再生する
+        <ScriptPlayer key={title} title={title} lines={lines} brandName={brandName} handle={handle} />
       ) : (
         <div className="ws-text">
           <div className="stack" style={{ gap: 2, marginBottom: 10 }}>
@@ -303,36 +270,5 @@ export function SamplePreview({
         </div>
       )}
     </div>
-  );
-}
-
-// ---------- 右の列: 相談の入力欄 ----------
-
-// 送ったら空にする。Enter で改行、Ctrl/⌘ + Enter で送信
-export function ChatForm({ action, disabled }: { action: Action; disabled: boolean }) {
-  const form = useRef<HTMLFormElement>(null);
-  const [state, run, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
-    const result = await action(prev, fd);
-    if (result?.ok) form.current?.reset();
-    return result;
-  }, null);
-  return (
-    <form ref={form} action={run} className="stack" style={{ gap: 6 }}>
-      <div className="chat-input">
-        <textarea
-          name="text"
-          className="input"
-          rows={3}
-          placeholder="例: 冒頭2行で結論を言い切る型にして試作して / 5行目が長いので行数を減らして"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
-          }}
-        />
-        <button className="send-btn" disabled={pending || disabled} aria-label="送信" title="送信（Ctrl / ⌘ + Enter でも送れます）">
-          <Send size={18} />
-        </button>
-      </div>
-      {state && !state.ok && <p className="notice ng">{state.message}</p>}
-    </form>
   );
 }
