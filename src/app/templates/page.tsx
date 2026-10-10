@@ -10,11 +10,6 @@ export default async function TemplatesPage() {
     select: { id: true, accounts: { select: { name: true } }, _count: { select: { projects: true } } },
   });
   const usage = new Map(counts.map((c) => [c.id, c]));
-  const workshops = await prisma.templateWorkshop.findMany({
-    include: { account: { select: { name: true } }, _count: { select: { messages: true } } },
-    orderBy: { updatedAt: 'desc' },
-    take: 10,
-  });
 
   return (
     <div className="page">
@@ -48,22 +43,6 @@ export default async function TemplatesPage() {
         })}
       </div>
 
-      {workshops.length > 0 && (
-        <section>
-          <h2>AI との相談</h2>
-          <div className="card flat list">
-            {workshops.map((w) => (
-              <Link key={w.id} href={`/templates/workshop/${w.id}`}>
-                <div className="grow stack" style={{ gap: 4 }}>
-                  <span className="title">{w.name}</span>
-                  <span className="muted">{w.account.name} ・ 発言 {w._count.messages} 件 ・ {w.updatedAt.toLocaleString('ja-JP')}</span>
-                </div>
-                <div className="side">{w.savedTemplateId ? <span className="badge ok">保存済み</span> : <span className="badge you">相談中</span>}</div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
