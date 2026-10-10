@@ -57,7 +57,7 @@ export function apiKeyEnvName(provider: AiProvider): string | null {
 
 // ---------- 設定 ----------
 
-// Claude Code・Antigravity の場所（環境変数 CLAUDE_BIN / ANTIGRAVITY_BIN があればそれ）
+// Claude Code・Antigravity を追加するときに最初に入れておく場所（環境変数 CLAUDE_BIN / ANTIGRAVITY_BIN があればそれ）
 export const DEFAULT_CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
 export const DEFAULT_ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || path.join(os.homedir(), '.antigravity-ide/antigravity-ide/bin/antigravity-ide');
 
@@ -67,18 +67,39 @@ export async function loadAiSettings() {
     const p = (PURPOSE_PROVIDERS[purpose] as string[]).includes(provider) ? (provider as AiProvider) : PURPOSE_PROVIDERS[purpose][0];
     return { provider: p, model };
   };
+  // API 以外の AI は「AI 連携」で登録したものだけを使う（登録していなければ null）
+  const local = await prisma.localAiEntry.findMany();
   return {
     job: pick('job', s.aiJobProvider, s.aiJobModel),
     workshop: pick('workshop', s.aiWorkshopProvider, s.aiWorkshopModel),
     edit: pick('edit', s.aiEditProvider, s.aiEditModel),
-    claudeBin: DEFAULT_CLAUDE_BIN,
-    antigravityBin: DEFAULT_ANTIGRAVITY_BIN,
+    claudeBin: local.find((l) => l.kind === 'claude-code')?.binPath ?? null,
+    antigravityBin: local.find((l) => l.kind === 'antigravity')?.binPath ?? null,
   };
 }
 
 export type AiSettings = Awaited<ReturnType<typeof loadAiSettings>>;
 
+// ---------- API 以外の AI（「AI 連携」→ API 以外） ----------
+
+export const LOCAL_KINDS = ['claude-code', 'antigravity'] as const;
+export type LocalAiKind = (typeof LOCAL_KINDS)[number];
+export const LOCAL_DEFAULT_BIN: Record<LocalAiKind, string> = { 'claude-code': DEFAULT_CLAUDE_BIN, antigravity: DEFAULT_ANTIGRAVITY_BIN };
+
+export function validateLocalAi(kind: string, label: string, binPath: string): string | null {
+  if (!(LOCAL_KINDS as readonly string[]).includes(kind)) return '種類を選んでください';
+  if (!label || label.length > 40) return '名前は1〜40文字で入力してください';
+  if (!binPath.startsWith('/')) return '場所は / から始まる絶対パスで入力してください';
+  if (!fs.existsSync(binPath)) return `その場所にファイルがありません: ${binPath}`;
+  return null;
+}
+
 // ---------- API キー（「AI 連携」→ API） ----------
+
+/** 環境変数名から、そのキーを使う AI（このサービスが使わないキーなら null） */
+export function providerForEnv(envName: string): AiProvider | null {
+  return (Object.entries(API_KEY_ENV) as [AiProvider, string][]).find(([, e]) => e === envName)?.[0] ?? null;
+}
 
 // サービス自身が使っている環境変数は、ここから登録・上書きできないようにする
 const RESERVED_ENV = /^(YOUTUBE_|INTERNAL_API_TOKEN$|NEXT_|NODE_|DATABASE_|CLAUDE_BIN$|ANTIGRAVITY_BIN$|VOICEVOX_|REMOTION_|AGENT_)/;
@@ -93,6 +114,14 @@ export function validateApiKeyEntry(label: string, envName: string, value: strin
 
 export type ApiKeyRow = { label: string; envName: string; masked: string | null; usedBy: string | null };
 
+/** Antigravity が起動できるか確かめる（IDE のチャットで動くため、AI の応答までは確かめられない） */
+export async function checkAntigravity(settings: AiSettings): Promise<string> {
+  if (!settings.antigravityBin) throw new Error('Antigravity が登録されていません');
+  const version = await run(settings.antigravityBin, ['--version']);
+  if (!version.ok) throw new Error(`起動できませんでした（${settings.antigravityBin}）`);
+  return version.stdout.trim().split('\n')[0];
+}
+
 /** 登録した API キーの一覧。.env.local に直接書いた Claude API・Gemini API のキーも並べる */
 export async function listApiKeys(): Promise<ApiKeyRow[]> {
   const entries = await prisma.apiKeyEntry.findMany({ orderBy: { createdAt: 'asc' } });
@@ -100,10 +129,9 @@ export async function listApiKeys(): Promise<ApiKeyRow[]> {
   for (const [provider, env] of Object.entries(API_KEY_ENV) as [AiProvider, string][]) {
     if (process.env[env] && !rows.some((r) => r.envName === env)) rows.push({ label: PROVIDER_LABEL[provider], envName: env });
   }
-  const usedBy = (env: string) => (Object.entries(API_KEY_ENV) as [AiProvider, string][]).find(([, e]) => e === env)?.[0] ?? null;
   return rows.map((r) => {
     const value = process.env[r.envName];
-    const provider = usedBy(r.envName);
+    const provider = providerForEnv(r.envName);
     return { ...r, masked: value ? `…${value.slice(-4)}` : null, usedBy: provider ? PROVIDER_LABEL[provider] : null };
   });
 }
@@ -125,6 +153,7 @@ export type ProviderStatus = {
 
 export async function providerStatus(provider: AiProvider, settings: AiSettings): Promise<ProviderStatus> {
   if (provider === 'claude-code') {
+    if (!settings.claudeBin) return { provider, ready: false, summary: '未登録', details: [] };
     if (!fs.existsSync(settings.claudeBin)) {
       return { provider, ready: false, summary: '見つかりません', details: [{ label: '場所', value: settings.claudeBin }] };
     }
@@ -142,7 +171,7 @@ export async function providerStatus(provider: AiProvider, settings: AiSettings)
     return {
       provider,
       ready: loggedIn,
-      summary: loggedIn ? 'ログイン済み' : 'ログインしていません（ターミナルで claude を起動してログイン）',
+      summary: loggedIn ? 'ログイン済み' : 'ログインしていません',
       details: [
         { label: '場所', value: settings.claudeBin },
         { label: 'バージョン', value: version.stdout.trim() || '-' },
@@ -151,6 +180,7 @@ export async function providerStatus(provider: AiProvider, settings: AiSettings)
     };
   }
   if (provider === 'antigravity') {
+    if (!settings.antigravityBin) return { provider, ready: false, summary: '未登録', details: [] };
     if (!fs.existsSync(settings.antigravityBin)) {
       return { provider, ready: false, summary: '見つかりません', details: [{ label: '場所', value: settings.antigravityBin }] };
     }
@@ -158,7 +188,7 @@ export async function providerStatus(provider: AiProvider, settings: AiSettings)
     return {
       provider,
       ready: true,
-      summary: 'インストール済み（ログインは IDE で行います）',
+      summary: 'インストール済み',
       details: [
         { label: '場所', value: settings.antigravityBin },
         { label: 'バージョン', value: version.stdout.trim().split('\n')[0] || '-' },
@@ -225,7 +255,10 @@ export async function runProviderJson<T>(
 ): Promise<T> {
   const s = settings ?? (await loadAiSettings());
   const once = () => {
-    if (provider === 'claude-code') return claudeCodeJson<T>(s.claudeBin, model, systemPrompt, prompt, schema);
+    if (provider === 'claude-code') {
+      if (!s.claudeBin) throw new Error('Claude Code が登録されていません（AI 連携の「API 以外」で追加してください）');
+      return claudeCodeJson<T>(s.claudeBin, model, systemPrompt, prompt, schema);
+    }
     if (provider === 'anthropic-api') return anthropicJson<T>(model || DEFAULT_MODEL['anthropic-api'], systemPrompt, prompt, schema);
     if (provider === 'gemini-api') return geminiJson<T>(model || DEFAULT_MODEL['gemini-api'], systemPrompt, prompt, schema);
     throw new Error(`${PROVIDER_LABEL[provider]} は、この用途には使えません`);

@@ -300,3 +300,12 @@ model ApiKeyEntry {
   envName   String   @unique // 環境変数名（例: ANTHROPIC_API_KEY）
   createdAt DateTime @default(now())
 }
+
+// 16. AI 連携で登録した、API 以外の AI（このパソコンに入れたツール）。種類ごとに1つ
+model LocalAiEntry {
+  id        String   @id @default(cuid())
+  kind      String   @unique // "claude-code" | "antigravity"
+  label     String // 自由な名前
+  binPath   String // 実行ファイルの場所
+  createdAt DateTime @default(now())
+}

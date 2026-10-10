@@ -22,7 +22,19 @@ import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorksh
 import { postEditChat, saveScript, startRender, stopEditChat, stopRender } from '@/lib/services/editService';
 import type { ScriptLine } from '@/lib/script';
 import { PING_SCHEMA } from '@/lib/ai/schemas';
-import { PROVIDER_LABEL, PURPOSE_PROVIDERS, runProviderJson, validateApiKeyEntry, type AiProvider, type AiPurpose } from '@/lib/ai/providers';
+import {
+  DEFAULT_MODEL,
+  PROVIDER_LABEL,
+  PURPOSE_PROVIDERS,
+  checkAntigravity,
+  loadAiSettings,
+  providerForEnv,
+  runProviderJson,
+  validateApiKeyEntry,
+  validateLocalAi,
+  type AiProvider,
+  type AiPurpose,
+} from '@/lib/ai/providers';
 
 export type ActionState = { ok: boolean; message: string } | null;
 
@@ -417,13 +429,55 @@ export async function deleteApiKey(envName: string): Promise<ActionState> {
   return done(`${envName} を消しました`);
 }
 
-export async function testAiProvider(provider: AiProvider, model: string): Promise<ActionState> {
-  if (provider === 'antigravity') return fail('Antigravity は IDE で動くため、ここからは試せません（状態の確認のみ）');
+export async function addLocalAi(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const kind = String(formData.get('kind') ?? '');
+  const label = String(formData.get('label') ?? '').trim();
+  const binPath = String(formData.get('binPath') ?? '').trim();
+  const error = validateLocalAi(kind, label, binPath);
+  if (error) return fail(error);
+  await prisma.localAiEntry.upsert({ where: { kind }, create: { kind, label, binPath }, update: { label, binPath } });
+  return done(`${label} を追加しました`);
+}
+
+export async function deleteLocalAi(kind: string): Promise<ActionState> {
+  await prisma.localAiEntry.deleteMany({ where: { kind } });
+  return done('消しました');
+}
+
+/** 接続テストに使うモデル（その AI を割り当てている用途のモデル。なければ既定） */
+async function testModelFor(provider: AiProvider): Promise<string> {
+  const s = await loadAiSettings();
+  return (['workshop', 'edit', 'job'] as AiPurpose[]).map((u) => s[u]).find((a) => a.provider === provider && a.model)?.model ?? DEFAULT_MODEL[provider];
+}
+
+/** API キーの行の接続テスト */
+export async function testApiKey(envName: string): Promise<ActionState> {
+  const provider = providerForEnv(envName);
+  if (!provider) return fail(`${envName} はこのサービスでは使っていないキーのため、試せません（Claude API は ANTHROPIC_API_KEY、Gemini API は GEMINI_API_KEY）`);
+  return testAiProvider(provider);
+}
+
+/** API 以外の AI の行の接続テスト */
+export async function testLocalAi(kind: string): Promise<ActionState> {
+  if (kind !== 'claude-code' && kind !== 'antigravity') return fail('種類が正しくありません');
+  return testAiProvider(kind);
+}
+
+export async function testAiProvider(provider: AiProvider): Promise<ActionState> {
   const started = Date.now();
+  const sec = () => ((Date.now() - started) / 1000).toFixed(1);
+  if (provider === 'antigravity') {
+    try {
+      const version = await checkAntigravity(await loadAiSettings());
+      return { ok: true, message: `Antigravity: 起動できました（${version}、${sec()}秒）。依頼は IDE のチャットで動くため、AI の応答までは確かめられません` };
+    } catch (error) {
+      return fail(`Antigravity: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const model = await testModelFor(provider);
   try {
     const out = await runProviderJson<{ reply: string }>(provider, model, 'あなたは接続テストに答えます。日本語で短く答えます。', '「接続できました」とだけ返してください。', PING_SCHEMA);
-    const sec = ((Date.now() - started) / 1000).toFixed(1);
-    return { ok: true, message: `${PROVIDER_LABEL[provider]}${model ? `（${model}）` : ''}: 「${out.reply.slice(0, 40)}」と返りました（${sec}秒）` };
+    return { ok: true, message: `${PROVIDER_LABEL[provider]}${model ? `（${model}）` : ''}: 「${out.reply.slice(0, 40)}」と返りました（${sec()}秒）` };
   } catch (error) {
     return fail(`${PROVIDER_LABEL[provider]} に接続できませんでした: ${error instanceof Error ? error.message : String(error)}`);
   }

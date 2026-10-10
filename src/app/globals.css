@@ -360,3 +360,8 @@ body.resizing { cursor: col-resize; user-select: none; }
 .key-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr) auto auto; gap: 8px; align-items: center; }
 @media (max-width: 860px) { .key-form { grid-template-columns: minmax(0, 1fr); } }
 td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
+.row-test { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 360px; }
+.row-test .notice { font-size: 12px; font-weight: 600; }
+.draft-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; }
+td .badge { white-space: nowrap; }

@@ -1,10 +1,11 @@
 import { connection } from 'next/server';
 import {
   DEFAULT_MODEL,
+  LOCAL_DEFAULT_BIN,
+  LOCAL_KINDS,
   PROVIDER_LABEL,
   PURPOSE_LABEL,
   PURPOSE_PROVIDERS,
-  apiKeyEnvName,
   listApiKeys,
   listModels,
   loadAiSettings,
@@ -12,13 +13,11 @@ import {
   type AiProvider,
   type AiPurpose,
 } from '@/lib/ai/providers';
-import { addApiKey, deleteApiKey, saveAiAssignments, testAiProvider } from '../actions';
-import { ActionButton } from '../projects/[id]/client';
-import { ApiKeysTable, AssignmentsForm } from './client';
+import { prisma } from '@/lib/prisma';
+import { addApiKey, addLocalAi, deleteApiKey, deleteLocalAi, saveAiAssignments, testApiKey, testLocalAi } from '../actions';
+import { ApiKeysTable, AssignmentsForm, LocalAiTable } from './client';
 
-const API_PROVIDERS: AiProvider[] = ['anthropic-api', 'gemini-api'];
-const OTHER_PROVIDERS: AiProvider[] = ['claude-code', 'antigravity'];
-const PROVIDERS = [...API_PROVIDERS, ...OTHER_PROVIDERS];
+const PROVIDERS: AiProvider[] = ['claude-code', 'antigravity', 'anthropic-api', 'gemini-api'];
 
 const PURPOSE_NOTE: Record<AiPurpose, string> = {
   job: '依頼の画面で選び直せます',
@@ -26,57 +25,15 @@ const PURPOSE_NOTE: Record<AiPurpose, string> = {
   edit: '動画編集の右の列',
 };
 
-// 連携している AI。用途ごとの割り当て / API（キーと Claude API・Gemini API）/ API 以外（Claude Code・Antigravity）
+// 連携している AI。用途ごとの割り当て / API（API キー）/ API 以外（このパソコンに入れた AI）
 export default async function AiPage() {
   // 状態（インストール・ログイン・API キー）は毎回その場で確かめる
   await connection();
-  const settings = await loadAiSettings();
-  const [statuses, keys] = await Promise.all([Promise.all(PROVIDERS.map((p) => providerStatus(p, settings))), listApiKeys()]);
+  const [settings, keys, locals] = await Promise.all([loadAiSettings(), listApiKeys(), prisma.localAiEntry.findMany({ orderBy: { createdAt: 'asc' } })]);
+  const statuses = await Promise.all(PROVIDERS.map((p) => providerStatus(p, settings)));
   const status = Object.fromEntries(statuses.map((s) => [s.provider, s])) as Record<AiProvider, (typeof statuses)[number]>;
-  const modelErrors: Partial<Record<AiProvider, string>> = {};
-  const models = Object.fromEntries(
-    await Promise.all(
-      PROVIDERS.map(async (p) => {
-        try {
-          return [p, await listModels(p)] as const;
-        } catch (error) {
-          modelErrors[p] = error instanceof Error ? error.message : String(error);
-          return [p, []] as const;
-        }
-      })
-    )
-  );
-  // 接続テストで使うモデル（その AI を割り当てている用途のモデル。なければ既定）
-  const testModel = (p: AiProvider) => (['workshop', 'edit', 'job'] as AiPurpose[]).map((u) => settings[u]).find((a) => a.provider === p && a.model)?.model ?? DEFAULT_MODEL[p];
-
-  const card = (p: AiProvider) => {
-    const s = status[p];
-    return (
-      <section key={p} className="card stack" style={{ gap: 10 }}>
-        <div className="row between" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <h3 style={{ margin: 0 }}>{PROVIDER_LABEL[p]}</h3>
-          <span className={`badge${s.ready ? ' ok' : ''}`}>{s.summary}</span>
-        </div>
-        <table>
-          <tbody>
-            {s.details.map((d) => (
-              <tr key={d.label}><th style={{ width: 140 }}>{d.label}</th><td style={{ wordBreak: 'break-all' }}>{d.value}</td></tr>
-            ))}
-            {apiKeyEnvName(p) && s.ready && (
-              <tr>
-                <th>使えるモデル</th>
-                <td>{modelErrors[p] ? <span className="notice ng">{modelErrors[p]}</span> : `${models[p].length} 件`}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {/* Antigravity は IDE で動くため試せない。API はキーを登録するまで試せない */}
-        {p !== 'antigravity' && s.ready && (
-          <ActionButton action={testAiProvider.bind(null, p, testModel(p))} label={`接続テスト${testModel(p) ? `（${testModel(p)}）` : ''}`} pendingLabel="試しています…" />
-        )}
-      </section>
-    );
-  };
+  // モデルの候補（取れなければ空。割り当ての欄では自由に入力もできる）
+  const models = Object.fromEntries(await Promise.all(PROVIDERS.map(async (p) => [p, await listModels(p).catch(() => [])] as const)));
 
   return (
     <div className="page">
@@ -103,17 +60,34 @@ export default async function AiPage() {
 
       <div className="ai-group">
         <h2>API</h2>
-        <section className="card stack" style={{ gap: 10 }}>
-          <h3 style={{ margin: 0 }}>API キー</h3>
-          <ApiKeysTable rows={keys} add={addApiKey} remove={deleteApiKey} />
-          <p className="muted">Claude API は ANTHROPIC_API_KEY、Gemini API は GEMINI_API_KEY を使います。値はこのパソコンの .env.local に保存し、画面には末尾4文字だけを出します。</p>
+        <section className="card">
+          <ApiKeysTable rows={keys} add={addApiKey} remove={deleteApiKey} test={testApiKey} />
         </section>
-        {API_PROVIDERS.map(card)}
       </div>
 
       <div className="ai-group">
         <h2>API 以外</h2>
-        {OTHER_PROVIDERS.map(card)}
+        <section className="card">
+          <LocalAiTable
+            rows={locals.map((l) => {
+              const s = status[l.kind as AiProvider];
+              return {
+                kind: l.kind,
+                kindLabel: PROVIDER_LABEL[l.kind as AiProvider] ?? l.kind,
+                label: l.label,
+                binPath: l.binPath,
+                summary: s?.summary ?? '',
+                ready: Boolean(s?.ready),
+                version: s?.details.find((d) => d.label === 'バージョン')?.value ?? null,
+              };
+            })}
+            kinds={LOCAL_KINDS.map((k) => PROVIDER_LABEL[k])}
+            addable={LOCAL_KINDS.filter((k) => !locals.some((l) => l.kind === k)).map((k) => ({ kind: k, label: PROVIDER_LABEL[k], defaultBin: LOCAL_DEFAULT_BIN[k] }))}
+            add={addLocalAi}
+            remove={deleteLocalAi}
+            test={testLocalAi}
+          />
+        </section>
       </div>
     </div>
   );

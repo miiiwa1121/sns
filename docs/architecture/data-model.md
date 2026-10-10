@@ -153,7 +153,10 @@ YouTube向けの横型マスター動画。
 ### 13. `ApiKeyEntry` (AI 連携で登録した API キー)
 「AI 連携」→ API の一覧の1行。`label`（自由な名前）と `envName`（環境変数名。一意）だけを持ち、値は `.env.local` に保存する（DB には入れない）。
 
-### 14. `AppSetting` (サービス全体の設定)
+### 14. `LocalAiEntry` (AI 連携で登録した、API 以外の AI)
+このパソコンに入れた AI ツール。`kind`（`claude-code` / `antigravity`。一意）・`label`（自由な名前）・`binPath`（実行ファイルの場所）。依頼・相談・編集はここに登録した場所を使う。
+
+### 15. `AppSetting` (サービス全体の設定)
 1行だけのテーブル（`id = "app"`。無ければ初回読み込み時に既定値で作る）。管理画面の「設定」で編集する。
 - `cleanupAuto`: 動画づくりの依頼が終わるたびに自動で整理するか（既定 false）
 - `cleanupDays`: YouTube 公開・依頼の終了からこの日数がたったものを整理する（既定 30）

@@ -48,6 +48,7 @@ async function main() {
   const ANTIGRAVITY_BIN = ai.antigravityBin;
   const CLAUDE_BIN = ai.claudeBin;
   if (job.provider === 'antigravity') {
+    if (!ANTIGRAVITY_BIN) return finish(job.id, 'failed', 'Antigravity が登録されていません（AI 連携の「API 以外」で追加してください）');
     if (!fs.existsSync(ANTIGRAVITY_BIN)) return finish(job.id, 'failed', `Antigravity が見つかりません: ${ANTIGRAVITY_BIN}`);
     // IDE のチャットに送るだけで、ここではすぐ終わる。進み具合は IDE で見て、完了は企画ができたかで判定する
     const child = spawn(ANTIGRAVITY_BIN, ['chat', '-m', 'agent', '-r', prompt], { cwd: repoDir, stdio: 'ignore', detached: true });
@@ -55,6 +56,7 @@ async function main() {
     return;
   }
 
+  if (!CLAUDE_BIN) return finish(job.id, 'failed', 'Claude Code が登録されていません（AI 連携の「API 以外」で追加してください）');
   if (!fs.existsSync(CLAUDE_BIN)) return finish(job.id, 'failed', `Claude Code が見つかりません: ${CLAUDE_BIN}`);
   const agentCmd = `npm --prefix ${repoDir} run -s agent --`;
   const dataDir = DATA_DIR;

@@ -140,7 +140,10 @@
 - できること（ユーザーと合意）: 状態の確認と接続テスト、用途ごとの割り当て、モデルの選択。
   - 状態: Claude Code（場所・バージョン・claude.ai へのログインの有無）、Antigravity（場所・バージョン）、API（キーの有無。末尾4文字だけ表示）。
   - 用途ごとの割り当て: 「動画づくりの依頼（既定）」は Claude Code / Antigravity、「構成案の相談・試作」「動画編集の手直し」は Claude Code / Claude API / Gemini API から選ぶ。モデルは候補から選ぶか入力（空欄なら既定）。
-  - 画面の構成（2026-10-11 変更）: 「用途ごとの割り当て」→「API」（API キーの一覧、Claude API・Gemini API の状態）→「API 以外」（Claude Code・Antigravity の状態）。AI ごとの説明文は出さない。置き場所の設定はなくした（既定の場所か、環境変数 CLAUDE_BIN / ANTIGRAVITY_BIN）。
+  - 画面の構成（2026-10-11 変更）: 「用途ごとの割り当て」→「API」（API キーの一覧）→「API 以外」（このパソコンに入れた AI の一覧）。AI ごとの説明文や、キーのない AI の状態カードは出さない。
+  - どちらも「登録したものの一覧 + ＋で追加」。1つもなければ＋のボタンだけを出す。行ごとに接続テストと削除を置く。
+  - API 以外の AI は、種類（今は Claude Code・Antigravity）・名前・場所で登録する（`LocalAiEntry`。種類ごとに1つ）。登録した場所を依頼・相談・編集で使い、登録していない AI は使えない。すべての種類を登録済みのときは「AI を追加」を押せないようにし、理由を出す。
+  - 接続テスト: Claude Code・Claude API・Gemini API は実際に1回呼ぶ。Antigravity は IDE のチャットで動くため、起動できるか（バージョンが取れるか）まで。このサービスが使わない環境変数名のキーは試せない旨を出す。
   - API キーは「名前（自由。例: Claude API）・環境変数名（例: ANTHROPIC_API_KEY）・値」を1行とし、＋で何行でも足せる。値は `.env.local` に保存して末尾4文字だけ表示し、名前と環境変数名の組は `ApiKeyEntry` に持つ。消すと `.env.local` の行ごと消す。Claude API は ANTHROPIC_API_KEY、Gemini API は GEMINI_API_KEY を使う。サービスが使っている環境変数（YOUTUBE_… など）は登録できない。
 - 依頼（リサーチから制作まで自分で進めるエージェント）は、API キーの AI には未対応（ツールを使って作業を進める仕組みを別に作る必要があるため）。
 
