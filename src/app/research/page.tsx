@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getCurrentChannel } from '@/lib/channel';
 import { safeJson } from '@/lib/json';
@@ -22,8 +23,19 @@ export default async function ResearchPage() {
         const sources = safeJson<{ title: string; url: string }[]>(t.sourcesJson, []);
         return (
           <div key={t.id} className="card stack" style={{ gap: 8 }}>
-            <span className="muted">{t.createdAt.toLocaleDateString('ja-JP')}</span>
-            <strong>{t.topic}</strong>
+            <div className="row between" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+              <div className="stack" style={{ gap: 4, flex: 1, minWidth: 220 }}>
+                <span className="muted">{t.createdAt.toLocaleDateString('ja-JP')}</span>
+                <strong>{t.topic}</strong>
+              </div>
+              {/* このリサーチから作った企画へ */}
+              {t.projects.map((p) => (
+                <Link key={p.id} href={`/projects/${p.id}`} className="btn primary" title={p.title} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  企画を開く
+                  <ArrowRight size={16} />
+                </Link>
+              ))}
+            </div>
             <p className="lead">{t.suggestedAngle}</p>
             {t.summary && <p className="muted">{t.summary}</p>}
             {sources.length > 0 && (
@@ -34,7 +46,7 @@ export default async function ResearchPage() {
               </ul>
             )}
             {t.projects.map((p) => (
-              <Link key={p.id} href={`/projects/${p.id}`} className="muted">→ 企画: {p.title}</Link>
+              <span key={p.id} className="muted">企画: {p.title}</span>
             ))}
           </div>
         );
