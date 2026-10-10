@@ -9,3 +9,4 @@
 <!-- storyboard-index: CLI がこの下に1行ずつ追記する -->
 - [20261009-cmv0oldwx0001qcj6lrja99go.md](20261009-cmv0oldwx0001qcj6lrja99go.md): ChatGPTがGPT-6に。答えが「画面」になった
 - [20261010-cmv1sgspk0001qcphhfmfl44h.md](20261010-cmv1sgspk0001qcphhfmfl44h.md): ChatGPTが音声ファイルに対応。録音を渡すだけで議事録に
+- [20261010-cmv2341zx0001qciume14xjw5.md](20261010-cmv2341zx0001qciume14xjw5.md): AIの「本気度」が選べる時代に。Claude Haiku 5.5登場

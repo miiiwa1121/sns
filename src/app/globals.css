@@ -280,9 +280,20 @@ body.resizing { cursor: col-resize; user-select: none; }
 .ws-prompt { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
 .ws-prompt-tabs { align-self: flex-start; }
 .ws-prompt-text {
-  flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 12px; border-radius: 10px;
-  background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 8px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px;
 }
+/* 節ごとの出どころ。構成案から来る節だけ色を付け、ほかは控えめにする */
+.ws-sec { position: relative; padding: 8px 10px; border-radius: 8px; border-left: 3px solid var(--border); }
+.ws-sec pre { margin: 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.ws-sec .ws-src { position: absolute; top: 6px; right: 8px; }
+.ws-sec.template { background: var(--accent-soft); border-left-color: var(--accent); }
+.ws-sec.fixed pre { color: var(--sub); }
+.ws-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-src { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--sub); background: var(--surface); }
+.ws-src.template { color: var(--accent-strong); border-color: var(--accent); }
+.ws-src.account { color: var(--success); }
+.ws-src.topic, .ws-src.conversation { color: var(--text); }
 
 .ws-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .ws-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }

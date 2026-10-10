@@ -136,11 +136,45 @@ export function WorkshopHeader({
 
 // ---------- 左の列: AI に渡すプロンプト ----------
 
+// プロンプトの各節が、どこから来た情報か。構成案から来る節だけを強調し、ほかはラベルで示す
+type PromptSource = 'template' | 'account' | 'topic' | 'conversation' | 'fixed';
+
+const SOURCE_LABEL: Record<PromptSource, string> = {
+  template: '構成案から',
+  account: 'アカウントから',
+  topic: '話題から',
+  conversation: '会話から',
+  fixed: '固定',
+};
+
+// 見出しで出どころを決める（見出しは agent/job-prompt.ts と src/lib/services/workshopService.ts で組み立てている）
+const SOURCE_BY_HEADING: [RegExp, PromptSource][] = [
+  [/^## (構成案|今の構成案の下書き)/, 'template'],
+  [/^## チャンネル/, 'account'],
+  [/^## (今回の依頼|試作の話題|話題)/, 'topic'],
+  [/^## (これまでのやりとり|担当者の今回の発言)/, 'conversation'],
+];
+
+function splitPrompt(text: string): { source: PromptSource; text: string }[] {
+  const sections: { source: PromptSource; text: string }[] = [];
+  for (const line of text.split('\n')) {
+    if (/^#{1,2} /.test(line) || sections.length === 0) {
+      const source = SOURCE_BY_HEADING.find(([re]) => re.test(line))?.[1] ?? 'fixed';
+      sections.push({ source, text: line });
+    } else {
+      sections[sections.length - 1].text += `\n${line}`;
+    }
+  }
+  return sections.map((sec) => ({ ...sec, text: sec.text.trimEnd() }));
+}
+
 type PromptTab = { key: string; label: string; note: string; text: string };
 
 export function PromptViewer({ tabs }: { tabs: PromptTab[] }) {
   const [active, setActive] = useState(tabs[0].key);
   const tab = tabs.find((t) => t.key === active) ?? tabs[0];
+  const sections = splitPrompt(tab.text);
+  const used = new Set(sections.map((sec) => sec.source));
   return (
     <div className="ws-prompt">
       <div className="seg ws-prompt-tabs" role="tablist" aria-label="プロンプトの種類">
@@ -151,7 +185,19 @@ export function PromptViewer({ tabs }: { tabs: PromptTab[] }) {
         ))}
       </div>
       <p className="muted">{tab.note}</p>
-      <pre className="ws-prompt-text">{tab.text}</pre>
+      <div className="ws-legend">
+        {(Object.keys(SOURCE_LABEL) as PromptSource[]).filter((src) => used.has(src)).map((src) => (
+          <span key={src} className={`ws-src ${src}`}>{SOURCE_LABEL[src]}</span>
+        ))}
+      </div>
+      <div className="ws-prompt-text">
+        {sections.map((sec, i) => (
+          <section key={i} className={`ws-sec ${sec.source}`}>
+            <span className={`ws-src ${sec.source}`}>{SOURCE_LABEL[sec.source]}</span>
+            <pre>{sec.text}</pre>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
