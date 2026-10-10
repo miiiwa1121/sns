@@ -20,7 +20,7 @@ export const RemotionRoot: React.FC = () => {
       height={1920}
       durationInFrames={FPS}
       calculateMetadata={calculateMetadata}
-      // Remotion Studio でのレイアウト確認用（音声なし）。実際の値は scripts/agent/cli.ts produce が --props で渡す
+      // Remotion Studio でのレイアウト確認用（音声なし）。実際の値は agent/cli.ts produce が --props で渡す
       defaultProps={{
         title: 'タイトル',
         brandName: 'ついていくのが精一杯',

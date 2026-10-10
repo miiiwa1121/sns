@@ -17,6 +17,7 @@ import {
 } from '@/app/actions';
 import { OwnerBadge, StepBar } from '../../ui';
 import { ActionButton, ActionForm, CopyButton } from './client';
+import { mediaUrlPath, thumbRelPath } from '@/lib/storage';
 
 type ScriptLine = { text: string; caption?: string };
 
@@ -72,7 +73,7 @@ function VideoSection({ project, approved }: { project: ProjectWithAll; approved
         <p className="lead">動画はまだできていません。エージェントが作るのを待ってください。</p>
       ) : (
         <div className="row" style={{ alignItems: 'flex-start', gap: 24, flexWrap: 'wrap' }}>
-          <video src={`/videos/${clip.renderedFilePath}`} poster={`/videos/${clip.renderedFilePath.replace(/\.mp4$/, '.jpg')}`} controls preload="metadata" />
+          <video src={mediaUrlPath(clip.renderedFilePath)} poster={mediaUrlPath(thumbRelPath(clip.renderedFilePath))} controls preload="metadata" />
           <div className="stack" style={{ flex: 1, minWidth: 240 }}>
             <p className="lead">再生して、次の点を確認してください。</p>
             <ul style={{ paddingLeft: 20, color: 'var(--sub)' }}>
@@ -95,7 +96,7 @@ function VideoSection({ project, approved }: { project: ProjectWithAll; approved
 
 function PublishSection({ project }: { project: ProjectWithAll }) {
   const clip = project.shortClips[0];
-  const videoUrl = `/videos/${clip.renderedFilePath}`;
+  const videoUrl = mediaUrlPath(clip.renderedFilePath!);
   const youtubeReady = YouTubePublisher.getAuthorizedClient(project.account.slug) !== null;
   const log = (p: PlatformType) => project.publishLogs.find((l) => l.platform === p);
 

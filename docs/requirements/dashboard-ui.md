@@ -118,17 +118,17 @@ sequenceDiagram
     participant CLI as npm run agent
     U->>A: テーマ（任意）と AI を選んで依頼
     A->>A: AgentJob を作成（同時に1件まで）
-    A->>R: tsx scripts/agent/job-runner.ts <jobId>
+    A->>R: tsx agent/job-runner.ts <jobId>
     R->>C: 指示書（job-prompt.ts）を渡して起動
     C->>CLI: trend:add → project:create --job → produce → 自己点検
     CLI-->>U: 企画が「承認待ち」としてホームに出る
 ```
 
 - **依頼（AgentJob）**: DB で管理し、AI が `project:create --job <jobId>` で作った企画と紐づける。状態は 作業中 / 完了 / 失敗 / 中止。
-- **指示書**: `scripts/agent/job-prompt.ts`。runbook の手順 1〜4（リサーチ → 登録 → 台本 → 制作 → 自己点検）と、守るべきルール。依頼ごとの作業フォルダ `out/agent/jobs/<jobId>/` に `prompt.md` と台本の実例 `example-project.json`（`scripts/agent/examples/` からコピー）を置く。
+- **指示書**: `agent/job-prompt.ts`。runbook の手順 1〜4（リサーチ → 登録 → 台本 → 制作 → 自己点検）と、守るべきルール。依頼ごとの作業フォルダ `data/jobs/<jobId>/` に `prompt.md` と台本の実例 `example-project.json`（`agent/examples/` からコピー）を置く。
 - **Claude Code**: `claude -p ... --output-format stream-json --permission-mode dontAsk`。出力を `log.jsonl` に書き、画面（`/jobs/[id]`）が3秒ごとに読み直して表示する。
   - 許可するのは Web 検索・Web 閲覧と、`npm run agent` の `status` / `knowledge` / `trend:add` / `project:create` / `project:update` / `produce` / `storyboard` だけ。
-  - 読み書きは作業フォルダと `out/agent` に限定する（`Read(./**)`, `Edit(./**)`, `Read(//…/out/agent/**)`, `Edit(//…/out/agent/**)`）。単に `Write` / `Read` と許可すると場所を問わず許可され、`.env.local` も読めてしまうことを実測で確認したため。
+  - 読み書きは作業フォルダと `data/` に限定する（`Read(./**)`, `Edit(./**)`, `Read(//…/data/**)`, `Edit(//…/data/**)`）。単に `Write` / `Read` と許可すると場所を問わず許可され、`.env.local` も読めてしまうことを実測で確認したため。
   - 環境変数 `AGENT_JOB_ID` を渡す。CLI はこれがあると、承認・投稿・数字の記録・分析を拒否する（指示書と権限設定に加えた三重目の安全装置）。
   - 「動画が作られないまま終了」「終了コードが0以外」は失敗にする。
 - **Antigravity**: `antigravity-ide chat -m agent -r <指示書>` で IDE のチャットに送る。画面なしの実行・完了待ちはできないため、紐づいた企画の動画ができたら完了とみなす。ツールの制限や `AGENT_JOB_ID` による拒否は効かない。IDE 側の許可と指示書が頼り。

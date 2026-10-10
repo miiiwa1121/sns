@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3001",
     "lint": "eslint",
-    "agent": "tsx scripts/agent/cli.ts",
-    "youtube:auth": "tsx scripts/agent/youtube-auth.ts"
+    "agent": "tsx agent/cli.ts",
+    "youtube:auth": "tsx agent/youtube-auth.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

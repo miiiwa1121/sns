@@ -1,12 +1,11 @@
 import fs from 'fs';
-import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { MultiPlatformPublisher, DispatchAllParams } from '@/lib/publishers';
 import { safeJson } from '@/lib/json';
 import { PlatformType } from '@/lib/types';
+import { resolveMediaPath } from '@/lib/storage';
 
 export const PLATFORMS: PlatformType[] = ['youtube', 'tiktok', 'instagram', 'x'];
-export const VIDEO_DIR = path.resolve(process.cwd(), 'public/videos');
 
 export interface PublishOptions {
   // 投稿先。省略時は4媒体すべて
@@ -43,10 +42,10 @@ export async function publishProject(projectId: string, options: PublishOptions 
   if (!clip?.renderedFilePath) {
     return { ok: false, httpStatus: 400, error: '承認済み（readyToPublish）かつレンダリング済み（renderedFilePath）のショートがありません' };
   }
-  // basename に限定して public/videos/ の外を指せないようにする
-  const videoFilePath = path.join(VIDEO_DIR, path.basename(clip.renderedFilePath));
-  if (!fs.existsSync(videoFilePath)) {
-    return { ok: false, httpStatus: 400, error: `動画ファイルが存在しません: public/videos/${path.basename(clip.renderedFilePath)}` };
+  // data/ の外を指せないよう、配信対象の相対パス（projects/<id>/video.mp4）に限定する
+  const videoFilePath = resolveMediaPath(clip.renderedFilePath);
+  if (!videoFilePath || !fs.existsSync(videoFilePath)) {
+    return { ok: false, httpStatus: 400, error: `動画ファイルが存在しません: data/${clip.renderedFilePath}` };
   }
 
   // 2. 配信済みのプラットフォームには再送しない（二重投稿防止）

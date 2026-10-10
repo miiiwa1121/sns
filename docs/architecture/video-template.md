@@ -8,11 +8,11 @@
 
 ```mermaid
 flowchart LR
-    A["台本 JSON<br>(out/agent/project-*.json)"] -->|project:create / update| B[("DB<br>ShortClip.scriptJson")]
+    A["台本 JSON<br>(data/scratch/project-*.json)"] -->|project:create / update| B[("DB<br>ShortClip.scriptJson")]
     B -->|produce| C["音声合成<br>VOICEVOX（行ごと）"]
     C -->|ffprobe で尺を測る| D["props.json<br>(行ごとの尺・場面・表情)"]
     D --> E["Remotion レンダリング<br>(システムの Chrome)"]
-    E --> F["public/videos/&lt;id&gt;.mp4"]
+    E --> F["data/projects/&lt;id&gt;/video.mp4"]
     F --> G["確認用静止画<br>(1行1コマの一覧)"]
     F --> H["絵コンテ<br>docs/videos/*.md"]
     G -->|エージェントが目視点検| I{"承認<br>(ユーザー)"}
@@ -49,14 +49,14 @@ flowchart LR
 
 ## 3. デザイン方針
 
-- **白と水色を基調にしたシンプルな画面**（2026-10-10 ユーザー指定）。配色は `src/remotion/theme.ts`。
+- **白と水色を基調にしたシンプルな画面**（2026-10-10 ユーザー指定）。配色は `remotion/theme.ts`。
   - 背景 `#F3F8FC`、カード `#FFFFFF`、水色 `#38BDF8`、強調 `#0284C7`、マーカー `#E0F2FE`、文字 `#0F172A`。
 - **絵文字・スタンプは使わず、UI 部品（カード・チップ・ステップ・選択UI・チャット画面の再現）で表現する**（同上）。
 - チャット画面は特定サービスの UI を使わない汎用の再現にし、「※イメージ」と表示する（実際の画面と誤解させないため）。
 - 字幕は、台本の `\n` 区切りの最長行が1行に収まる文字サイズを自動で計算する（意図しない位置での折り返しを防ぐ）。
 - BGM は使わない（2026-10-10 ユーザー判断）。行の切り替えに短い効果音（`public/se/`、ffmpeg で生成した自作音源）を入れる。
 
-## 4. 場面の種類（`src/remotion/types.ts` の `Scene`）
+## 4. 場面の種類（`remotion/types.ts` の `Scene`）
 
 | type | 用途 | 主な項目 |
 | :--- | :--- | :--- |
@@ -82,11 +82,11 @@ flowchart LR
 
 | ファイル | 役割 |
 | :--- | :--- |
-| `src/remotion/ShortVideo.tsx` | 全体の構成（背景・ヘッダー・ステージ・字幕・マスコット・音） |
-| `src/remotion/components/Scenes.tsx` | 場面の UI |
-| `src/remotion/components/Caption.tsx` | 字幕（強調語） |
-| `src/remotion/components/Mascot.tsx` | マスコット（表情・口パク） |
-| `src/remotion/theme.ts` | 配色・フォント・文字サイズ計算 |
-| `scripts/agent/produce.ts` | 音声合成 → レンダリング → 確認用静止画 |
-| `scripts/agent/tts.ts` | VOICEVOX / edge-tts |
-| `scripts/agent/cli.ts` | `produce` / `storyboard` など |
+| `remotion/ShortVideo.tsx` | 全体の構成（背景・ヘッダー・ステージ・字幕・マスコット・音） |
+| `remotion/components/Scenes.tsx` | 場面の UI |
+| `remotion/components/Caption.tsx` | 字幕（強調語） |
+| `remotion/components/Mascot.tsx` | マスコット（表情・口パク） |
+| `remotion/theme.ts` | 配色・フォント・文字サイズ計算 |
+| `agent/produce.ts` | 音声合成 → レンダリング → 確認用静止画 |
+| `agent/tts.ts` | VOICEVOX / edge-tts |
+| `agent/cli.ts` | `produce` / `storyboard` など |

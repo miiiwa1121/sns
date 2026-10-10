@@ -3,7 +3,7 @@
 - プロジェクトID: `cmv1sgspk0001qcphhfmfl44h`
 - 状態: published
 - 尺: 43.0 秒（10 行）
-- 動画ファイル: `public/videos/cmv1sgspk0001qcphhfmfl44h.mp4`（Git 管理外）
+- 動画ファイル: `data/projects/cmv1sgspk0001qcphhfmfl44h/video.mp4`（Git 管理外）
 - 声: VOICEVOX:ずんだもん
 - 狙い: ChatGPT の音声アップロードを「録音を渡すだけで、文字起こし・要約・議事録・メール下書きまで」の一言で伝え、有料プラン限定・長い録音や誤りの注意点も添えて、次の会議から試せるようにする
 

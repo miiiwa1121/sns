@@ -147,3 +147,18 @@
 - **背景・理由**:
   - 第1弾の YouTube 公開までが通り、ユーザーが他媒体の手動投稿は後回しにすると判断した。
   - YouTube は API で投稿と実測値の取得（平均視聴率を含む）まで自動化できているため。
+
+---
+
+## Decision 013: 生成物は `data/` に集約し、`agent/`・`remotion/` をルート直下に置く
+- **決定日**: 2026-10-10
+- **決定内容**:
+  - 動画・音声・作業ファイル・依頼ジョブのログなどの生成物は `data/`（git 管理外）に置く。企画ごとに `data/projects/<id>/` にまとめ、片付けはフォルダごと消すだけにする。`public/` は固定素材（`brand/`・`se/`）だけにする。
+  - DB の `ShortClip.renderedFilePath` は `data/` からの相対パス（`projects/<id>/video.mp4`）を保存する。
+  - 動画の配信は `public/` ではなく Route Handler `/api/media/[...path]` が行う（動画とサムネのみ）。
+  - エージェント CLI を `agent/`、動画テンプレートを `remotion/` としてルート直下に置く。
+- **背景・理由**:
+  - 生成物が `out/`・`public/audio/`・`public/videos/` に分散し、増え続けても掃除の単位がなかった。`public/` に置くと配信対象に混ざる。
+  - Prisma（DB）が持つのは場所だけで、ファイル本体は管理しない。ファイルの置き場を1か所に決めておく必要があった。
+  - `agent/`・`remotion/` は Next.js の画面とは別のランタイムで、`scripts/`・`src/` の下では役割が伝わらなかった。
+- 詳細: [architecture/directory-structure.md](../architecture/directory-structure.md)

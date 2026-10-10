@@ -11,7 +11,7 @@ Claude Code セッション（以下、エージェント）が「ついてい�
 - 作業はリポジトリ直下で行う。コマンドはすべて `npm run -s agent -- <command>`。
 - 必要なツール: VOICEVOX エンジン（`~/.local/share/voicevox/macos-arm64/`。[公式 GitHub](https://github.com/VOICEVOX/voicevox_engine/releases) の macos-arm64 版を 7-Zip で展開）、`ffmpeg` / `ffprobe`、Google Chrome（レンダリングに使う）。
 - YouTube 自動投稿の設定は [youtube-setup.md](youtube-setup.md)。未設定でも、投稿以外の工程は回せる。
-- 一時ファイル（リサーチや台本の JSON）は `out/agent/`（Git 管理外）に置く。
+- 一時ファイル（リサーチや台本の JSON）は `data/scratch/`（Git 管理外）に置く。生成物の置き場所は [ディレクトリ構成](../architecture/directory-structure.md) を参照。
 
 ## 1. 状況確認
 
@@ -27,7 +27,7 @@ npm run -s agent -- status
    - **一次情報（公式発表・公式ブログ・論文・リリースノート）を最低1件含める。**
    - まとめ記事だけで判断しない。
 2. 「ついていくのが精一杯な人」が知っておくべき度合いで、1本に絞る。
-3. `out/agent/trend.json` を書いて登録する。
+3. `data/scratch/trend.json` を書いて登録する。
 
 ```json
 {
@@ -41,7 +41,7 @@ npm run -s agent -- status
 ```
 
 ```bash
-npm run -s agent -- trend:add out/agent/trend.json
+npm run -s agent -- trend:add data/scratch/trend.json
 ```
 
 - `buzzScore` などの推測値は入れない。
@@ -55,7 +55,7 @@ npm run -s agent -- trend:add out/agent/trend.json
 npm run -s agent -- knowledge
 ```
 
-次に `out/agent/project.json` を書く。
+次に `data/scratch/project.json` を書く。
 
 ```json
 {
@@ -98,7 +98,7 @@ npm run -s agent -- knowledge
 - 最後の行は締めの一言にする。CTA（「フォローしてね」など）は入れても入れなくてもよい。
 
 ```bash
-npm run -s agent -- project:create out/agent/project.json
+npm run -s agent -- project:create data/scratch/project.json
 ```
 
 ## 4. 制作
@@ -108,8 +108,8 @@ npm run -s agent -- produce <projectId>
 ```
 
 - 出力は次の3つ。
-  - 動画: `public/videos/<projectId>.mp4`
-  - 確認用静止画: `out/agent/<projectId>/preview.png`（字幕1行につき1コマを6列で並べた一覧）
+  - 動画: `data/projects/<projectId>/video.mp4`
+  - 確認用静止画: `data/projects/<projectId>/work/preview.png`（字幕1行につき1コマを6列で並べた一覧）
   - 絵コンテ: `docs/videos/<日付>-<projectId>.md`（構成の記録。配信後は URL も反映される）
 - 台本を直すときは `project:update <projectId> <file.json>` で差し替えて、`produce` し直す（配信前のみ）。
 - 声と速度は既定でずんだもん・1.15。VOICEVOX エンジンは `produce` が自動で起動・停止する。
@@ -123,7 +123,7 @@ npm run -s agent -- produce <projectId>
 ## 5. 承認（人間の判断）
 
 ユーザーに次の3点を見せ、**公開してよいか明示的に聞く。**
-- `public/videos/<projectId>.mp4` のパス
+- `data/projects/<projectId>/video.mp4` のパス
 - 静止画
 - 台本と出典
 
@@ -153,7 +153,7 @@ npm run -s agent -- publish <projectId> --platforms youtube
 npm run -s agent -- export:manual <projectId>
 ```
 
-1. `out/agent/<projectId>/manual/` の `video.mp4` と `captions.md` をユーザーに渡し、投稿してもらう。
+1. `data/projects/<projectId>/work/manual/` の `video.mp4` と `captions.md` をユーザーに渡し、投稿してもらう。
 2. 投稿 URL を聞いて記録する。
 
 ```bash
@@ -167,7 +167,7 @@ npm run -s agent -- publish:record <projectId> tiktok https://www.tiktok.com/@..
 npm run -s agent -- metrics:collect <projectId>
 
 # 他の媒体は、ユーザーにアプリのインサイトの数字を聞いて手入力
-npm run -s agent -- metrics:record <projectId> out/agent/metrics.json
+npm run -s agent -- metrics:record <projectId> data/scratch/metrics.json
 
 # 分析。総再生1,000回以上なら知見として保存される
 npm run -s agent -- analyze <projectId> --save-knowledge

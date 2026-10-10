@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
+import { jobDir } from '@/lib/storage';
 
 export const PROVIDER_LABEL: Record<string, string> = {
   'claude-code': 'Claude Code',
@@ -47,7 +48,7 @@ export type LogEntry =
 
 // Claude Code の stream-json 出力（log.jsonl）を、画面に出す行に変換する
 export function readJobLog(jobId: string): LogEntry[] {
-  const file = path.resolve('out/agent/jobs', jobId, 'log.jsonl');
+  const file = path.join(jobDir(jobId), 'log.jsonl');
   if (!fs.existsSync(file)) return [];
   const entries: LogEntry[] = [];
   for (const line of fs.readFileSync(file, 'utf-8').split('\n')) {

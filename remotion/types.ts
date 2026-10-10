@@ -1,4 +1,4 @@
-// ショート動画の台本・場面の型。scripts/agent（台本 JSON）と Remotion コンポジションで共用する。
+// ショート動画の台本・場面の型。agent（台本 JSON）と Remotion コンポジションで共用する。
 // Remotion の props は Record<string, unknown> を満たす必要があるため、interface ではなく type で定義する。
 // 場面は絵文字やスタンプを使わず、UI 部品で表現する（2026-10-10 ユーザー指定）。
 

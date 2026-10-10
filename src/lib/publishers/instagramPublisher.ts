@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { DATA_DIR, mediaUrlPath } from '@/lib/storage';
 
 export interface InstagramUploadParams {
   videoFilePath: string;
@@ -29,7 +30,7 @@ export class InstagramPublisher {
     // 1. 実動画ファイルの存在確認
     const fullPath = path.isAbsolute(videoFilePath)
       ? videoFilePath
-      : path.join(process.cwd(), 'public/videos', path.basename(videoFilePath));
+      : path.join(DATA_DIR, videoFilePath);
 
     if (!fs.existsSync(fullPath)) {
       return {
@@ -56,7 +57,7 @@ export class InstagramPublisher {
       // 3. メディアコンテナの作成 (POST /{ig-user-id}/media)
       // 注意: 本番環境では外部からアクセス可能な動画URLまたはResumable Uploadを利用
       const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
-      const publicVideoUrl = `${hostUrl}/videos/${path.basename(fullPath)}`;
+      const publicVideoUrl = `${hostUrl}${mediaUrlPath(path.relative(DATA_DIR, fullPath))}`;
 
       const containerRes = await fetch(`${apiBase}/${igAccountId}/media`, {
         method: 'POST',

@@ -24,7 +24,7 @@ const fail = (message: string): ActionState => ({ ok: false, message });
 
 // 絵コンテ（docs/videos/）に投稿 URL を反映する。CLI の storyboard を別プロセスで動かす（画面の応答は待たせない）
 function refreshStoryboard(projectId: string) {
-  spawn('npx', ['tsx', 'scripts/agent/cli.ts', 'storyboard', projectId], { cwd: process.cwd(), detached: true, stdio: 'ignore' }).unref();
+  spawn('npx', ['tsx', 'agent/cli.ts', 'storyboard', projectId], { cwd: process.cwd(), detached: true, stdio: 'ignore' }).unref();
 }
 
 function isPlatform(v: unknown): v is PlatformType {
@@ -135,7 +135,7 @@ export async function createVideoJob(_prev: ActionState, formData: FormData): Pr
 
   const job = await prisma.agentJob.create({ data: { accountId: channel.id, provider: String(provider), theme } });
   // 依頼の実行は別プロセスで行う（画面の応答を待たせない）
-  const child = spawn('npx', ['tsx', 'scripts/agent/job-runner.ts', job.id], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
+  const child = spawn('npx', ['tsx', 'agent/job-runner.ts', job.id], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
   child.unref();
   revalidatePath('/', 'layout');
   redirect(`/jobs/${job.id}`);

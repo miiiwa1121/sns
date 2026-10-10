@@ -1,4 +1,4 @@
-// 管理画面からの依頼（AgentJob）を実行する。src/app/actions.ts が別プロセスとして起動する: `tsx scripts/agent/job-runner.ts <jobId>`
+// 管理画面からの依頼（AgentJob）を実行する。src/app/actions.ts が別プロセスとして起動する: `tsx agent/job-runner.ts <jobId>`
 //   claude-code: `claude -p` を画面なしで最後まで実行し、出力（stream-json）を log.jsonl に書く
 //   antigravity: Antigravity IDE のチャットに指示書を送る（実行は IDE 上。完了は企画の状態で判定する）
 import './env';
@@ -6,7 +6,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
-import { prisma } from '../../src/lib/prisma';
+import { prisma } from '../src/lib/prisma';
+import { jobDir, DATA_DIR } from '../src/lib/storage';
 import { buildJobPrompt } from './job-prompt';
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || path.join(os.homedir(), '.local/bin/claude');
@@ -16,7 +17,7 @@ const ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || path.join(os.homedir(), '
 const ALLOWED_AGENT_COMMANDS = ['status', 'knowledge', 'trend:add', 'project:create', 'project:update', 'produce', 'storyboard'];
 
 export function jobWorkDir(jobId: string): string {
-  return path.resolve('out/agent/jobs', jobId);
+  return jobDir(jobId);
 }
 
 async function finish(jobId: string, status: 'succeeded' | 'failed', error?: string) {
@@ -34,9 +35,9 @@ async function main() {
   const prompt = buildJobPrompt({ jobId: job.id, repoDir, workDir, theme: job.theme, channel: job.account });
   fs.writeFileSync(path.join(workDir, 'prompt.md'), prompt);
   // 台本 JSON の実例（第1弾）。指示書から参照する
-  fs.copyFileSync(path.join(repoDir, 'scripts/agent/examples/project.example.json'), path.join(workDir, 'example-project.json'));
+  fs.copyFileSync(path.join(repoDir, 'agent/examples/project.example.json'), path.join(workDir, 'example-project.json'));
   // 場面の型定義（作業フォルダの外のソースは読めないため、参照用にコピーする）
-  fs.copyFileSync(path.join(repoDir, 'src/remotion/types.ts'), path.join(workDir, 'scene-types.ts'));
+  fs.copyFileSync(path.join(repoDir, 'remotion/types.ts'), path.join(workDir, 'scene-types.ts'));
 
   if (job.provider === 'antigravity') {
     if (!fs.existsSync(ANTIGRAVITY_BIN)) return finish(job.id, 'failed', `Antigravity が見つかりません: ${ANTIGRAVITY_BIN}`);
@@ -48,16 +49,16 @@ async function main() {
 
   if (!fs.existsSync(CLAUDE_BIN)) return finish(job.id, 'failed', `Claude Code が見つかりません: ${CLAUDE_BIN}`);
   const agentCmd = `npm --prefix ${repoDir} run -s agent --`;
-  const outAgent = path.join(repoDir, 'out/agent');
-  // 読み書きは作業フォルダ（cwd）と out/agent に限定する（"//" 始まりは絶対パス）。
+  const dataDir = DATA_DIR;
+  // 読み書きは作業フォルダ（cwd）と data/ に限定する（"//" 始まりは絶対パス）。
   // 単に 'Write' / 'Read' と許可すると場所を問わず許可され、.env.local（認証情報）も読めてしまう（2026-10-10 に確認）
   const allowedTools = [
     'WebSearch',
     'WebFetch',
     'Read(./**)',
     'Edit(./**)',
-    `Read(/${outAgent}/**)`,
-    `Edit(/${outAgent}/**)`,
+    `Read(/${dataDir}/**)`,
+    `Edit(/${dataDir}/**)`,
     ...ALLOWED_AGENT_COMMANDS.map((c) => `Bash(${agentCmd} ${c}:*)`),
   ];
   const log = fs.createWriteStream(path.join(workDir, 'log.jsonl'), { flags: 'a' });
@@ -70,7 +71,7 @@ async function main() {
       // 許可リスト外の操作は聞かずに拒否する。書き込みは作業フォルダ（cwd）と --add-dir の範囲に限られる
       '--permission-mode', 'dontAsk',
       '--allowedTools', ...allowedTools,
-      '--add-dir', outAgent,
+      '--add-dir', dataDir,
       '--no-session-persistence',
     ],
     // AGENT_JOB_ID があると、CLI 側でも承認・投稿などを拒否する

@@ -116,7 +116,7 @@ model ShortClip {
   estimatedRetentionRate Int      @default(80)
   bgmTrack               String?
   scriptJson             String? // ナレーション行 [{ text, caption? }] の JSON（ショート単体の台本）
-  renderedFilePath       String? // レンダリング済み MP4 の public/videos/ 配下のファイル名（配信対象）
+  renderedFilePath       String? // レンダリング済み MP4 の data/ からの相対パス（例: projects/<id>/video.mp4。配信対象）
   readyToPublish         Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt

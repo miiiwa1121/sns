@@ -7,8 +7,8 @@ import fs from 'fs';
 import http from 'http';
 import crypto from 'crypto';
 import { google } from 'googleapis';
-import { YOUTUBE_REDIRECT_URI, YOUTUBE_SCOPES, youtubeTokenEnvName } from '../../src/lib/publishers/youtubePublisher';
-import { prisma } from '../../src/lib/prisma';
+import { YOUTUBE_REDIRECT_URI, YOUTUBE_SCOPES, youtubeTokenEnvName } from '../src/lib/publishers/youtubePublisher';
+import { prisma } from '../src/lib/prisma';
 
 const ENV_FILE = '.env.local';
 

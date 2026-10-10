@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { google } from 'googleapis';
+import { DATA_DIR } from '@/lib/storage';
 
-// デスクトップアプリ型 OAuth クライアントのループバック受け口（scripts/agent/youtube-auth.ts が待ち受ける）
+// デスクトップアプリ型 OAuth クライアントのループバック受け口（agent/youtube-auth.ts が待ち受ける）
 export const YOUTUBE_REDIRECT_URI = process.env.YOUTUBE_REDIRECT_URI || 'http://127.0.0.1:53682/oauth2callback';
 
 export const YOUTUBE_SCOPES = [
@@ -62,7 +63,7 @@ export class YouTubePublisher {
     // 1. 実動画ファイルの存在確認
     const fullPath = path.isAbsolute(videoFilePath)
       ? videoFilePath
-      : path.join(process.cwd(), 'public/videos', path.basename(videoFilePath));
+      : path.join(DATA_DIR, videoFilePath);
 
     if (!fs.existsSync(fullPath)) {
       return {

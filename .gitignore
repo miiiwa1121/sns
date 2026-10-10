@@ -47,7 +47,5 @@ prisma/dev.db-journal
 *.db-journal
 
 
-# エージェント CLI の生成物（プロジェクトごとの音声・動画）。作業ファイルは /out/agent/ に出る（/out/ で除外済み）
-/public/audio/*/
-/public/videos/*.mp4
-/public/videos/*.jpg
+# 生成物（動画・音声・作業ファイル・依頼ジョブのログ）。プロジェクトごとに data/projects/<id>/ にまとまる
+/data/

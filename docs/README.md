@@ -8,6 +8,7 @@
   - [decisions.md](requirements/decisions.md): プロジェクトの重要決定事項（アーキテクチャ・運用方針・データ保持方針など）
   - [dashboard-ui.md](requirements/dashboard-ui.md): 管理画面 UI の要件（要件定義中）
 - **[architecture/](architecture/README.md)**: システムアーキテクチャ・データモデル設計
+  - [directory-structure.md](architecture/directory-structure.md): ディレクトリ構成と生成物の保管場所（`data/`）
   - [data-model.md](architecture/data-model.md)
   - [video-template.md](architecture/video-template.md): ショート動画テンプレートの構成図: マルチアカウント対応ER図およびPrisma/SQLiteスキーマ詳細
 - **[operations/](operations/README.md)**: 運用手順書

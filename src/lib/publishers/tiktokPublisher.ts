@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { DATA_DIR } from '@/lib/storage';
 
 export interface TikTokUploadParams {
   videoFilePath: string;
@@ -35,7 +36,7 @@ export class TikTokPublisher {
     // 1. 実動画ファイルの存在確認
     const fullPath = path.isAbsolute(videoFilePath)
       ? videoFilePath
-      : path.join(process.cwd(), 'public/videos', path.basename(videoFilePath));
+      : path.join(DATA_DIR, videoFilePath);
 
     if (!fs.existsSync(fullPath)) {
       return {

@@ -96,7 +96,8 @@ flowchart TD
 
 ### 4.2 配信対象の動画
 - プロジェクトの `ShortClip` のうち `readyToPublish = true`（**人間が承認済み**）かつ `renderedFilePath` が設定されたものを配信する。
-- `renderedFilePath` は `public/videos/` 配下のファイル名。basename だけを使うため、`public/videos/` の外は指せない。
+- `renderedFilePath` は `data/` からの相対パス（`projects/<id>/video.mp4`）。`resolveMediaPath` が `projects/<id>/(video.mp4|thumb.jpg)` の形だけを通すため、`data/` の外や作業ファイルは指せない。
+- Instagram に渡す動画 URL は `${NEXT_PUBLIC_APP_URL}/api/media/projects/<id>/video.mp4`（Route Handler が Range リクエストに応える）。
 - 該当クリップが無い、またはファイルが無い場合は 400。
 
 ### 4.3 二重投稿の防止

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { DATA_DIR } from '@/lib/storage';
 
 export interface XUploadParams {
   videoFilePath: string;
@@ -26,7 +27,7 @@ export class XPublisher {
 
     const fullPath = path.isAbsolute(videoFilePath)
       ? videoFilePath
-      : path.join(process.cwd(), 'public/videos', path.basename(videoFilePath));
+      : path.join(DATA_DIR, videoFilePath);
 
     if (!fs.existsSync(fullPath)) {
       return {

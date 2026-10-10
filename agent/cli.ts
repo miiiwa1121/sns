@@ -3,18 +3,19 @@
 import './env';
 import fs from 'fs';
 import path from 'path';
-import { prisma } from '../../src/lib/prisma';
-import { safeJson } from '../../src/lib/json';
-import { PlatformType } from '../../src/lib/types';
-import { extractYouTubeVideoId, publishProject, recordManualPublish, PLATFORMS } from '../../src/lib/services/publishService';
-import { analyzeProject, parsePlatformMetrics, recordMetrics } from '../../src/lib/services/analyticsService';
-import { fetchYouTubeMetrics } from '../../src/lib/analytics/youtubeMetrics';
+import { prisma } from '../src/lib/prisma';
+import { safeJson } from '../src/lib/json';
+import { PlatformType } from '../src/lib/types';
+import { extractYouTubeVideoId, publishProject, recordManualPublish, PLATFORMS } from '../src/lib/services/publishService';
+import { analyzeProject, parsePlatformMetrics, recordMetrics } from '../src/lib/services/analyticsService';
+import { fetchYouTubeMetrics } from '../src/lib/analytics/youtubeMetrics';
 import { produceShort, ScriptLine } from './produce';
-import { MOODS, SCENE_TYPES, Scene } from '../../src/remotion/types';
-import { nextAction } from '../../src/lib/workflow';
+import { MOODS, SCENE_TYPES, Scene } from '../remotion/types';
+import { nextAction } from '../src/lib/workflow';
+import { projectWorkDir, resolveMediaPath } from '../src/lib/storage';
 import { execFileSync } from 'child_process';
 
-// 声の指定は scripts/agent/tts.ts を参照。AGENT_VOICE で上書きできる
+// 声の指定は agent/tts.ts を参照。AGENT_VOICE で上書きできる
 const DEFAULT_VOICE = process.env.AGENT_VOICE || 'voicevox:ずんだもん:ノーマル';
 const DEFAULT_SPEED = 1.15;
 
@@ -322,7 +323,7 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
     prisma.shortClip.update({
       where: { id: clip.id },
       data: {
-        renderedFilePath: result.videoFileName,
+        renderedFilePath: result.videoRelPath,
         durationSec: Math.round(result.durationSec),
         endTimeSec: Math.round(result.durationSec),
         // 作り直したら承認はやり直し
@@ -332,7 +333,7 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
     prisma.project.update({ where: { id: project.id }, data: { stage: 'review' } }),
   ]);
 
-  console.log(`✅ 動画: public/videos/${result.videoFileName}（${result.durationSec.toFixed(1)}秒）`);
+  console.log(`✅ 動画: data/${result.videoRelPath}（${result.durationSec.toFixed(1)}秒）`);
   console.log(`   確認用静止画: ${path.relative(process.cwd(), result.previewPath)}`);
   console.log(`   絵コンテ: ${await writeStoryboard(project.id)}`);
   if (result.durationSec > 60) console.log('   ⚠️ 60秒を超えています。Instagram / 一部の Shorts 扱いで不利になる可能性があります');
@@ -366,7 +367,7 @@ const cell = (t: string) => t.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
 async function writeStoryboard(projectId: string): Promise<string> {
   const project = await findProject(projectId);
   const clip = project.shortClips[0];
-  const propsPath = path.resolve('out/agent', project.id, 'props.json');
+  const propsPath = path.join(projectWorkDir(project.id), 'props.json');
   if (!clip?.renderedFilePath || !fs.existsSync(propsPath)) throw new UsageError('未レンダリングです（先に produce）');
   const props = JSON.parse(fs.readFileSync(propsPath, 'utf-8')) as { lines: { durationInFrames: number }[]; credit?: string | null };
   const script = safeJson<ScriptLine[]>(clip.scriptJson, []);
@@ -374,7 +375,7 @@ async function writeStoryboard(projectId: string): Promise<string> {
   const date = project.createdAt.toLocaleDateString('sv-SE').replace(/-/g, '');
   const baseName = `${date}-${project.id}`;
   const imageRel = `img/${baseName}.jpg`;
-  const previewPng = path.resolve('out/agent', project.id, 'preview.png');
+  const previewPng = path.join(projectWorkDir(project.id), 'preview.png');
   if (fs.existsSync(previewPng)) {
     execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', previewPng, '-vf', 'scale=1620:-1', '-q:v', '4', path.join(STORYBOARD_DIR, imageRel)]);
   }
@@ -398,7 +399,7 @@ async function writeStoryboard(projectId: string): Promise<string> {
     `- プロジェクトID: \`${project.id}\``,
     `- 状態: ${project.stage}`,
     `- 尺: ${(start / 30).toFixed(1)} 秒（${script.length} 行）`,
-    `- 動画ファイル: \`public/videos/${clip.renderedFilePath}\`（Git 管理外）`,
+    `- 動画ファイル: \`data/${clip.renderedFilePath}\`（Git 管理外）`,
     `- 声: ${props.credit ?? '-'}`,
     `- 狙い: ${project.concept}`,
     '',
@@ -477,9 +478,9 @@ async function exportManual(projectId: string) {
   if (!clip?.renderedFilePath) throw new UsageError('未レンダリングです（先に produce）');
   if (!clip.readyToPublish) throw new UsageError('未承認です（承認前の動画は書き出さない）');
 
-  const dir = path.resolve('out/agent', project.id, 'manual');
+  const dir = path.join(projectWorkDir(project.id), 'manual');
   fs.mkdirSync(dir, { recursive: true });
-  fs.copyFileSync(path.resolve('public/videos', path.basename(clip.renderedFilePath)), path.join(dir, 'video.mp4'));
+  fs.copyFileSync(resolveMediaPath(clip.renderedFilePath) ?? '', path.join(dir, 'video.mp4'));
   const log = (p: PlatformType) => project.publishLogs.find((l) => l.platform === p);
   const md = [
     `# 手動投稿パッケージ: ${project.title}`,

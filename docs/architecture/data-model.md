@@ -90,7 +90,7 @@ YouTube向けの横型マスター動画。
 - `aspectRatio`: デフォルト `9:16`
 - `estimatedRetentionRate`: 予測視聴維持率（%）
 - `scriptJson`: ショートの台本 `[{ text, caption? }]`。1要素 = 読み上げ1行 = 字幕1枚
-- `renderedFilePath`: レンダリング済み MP4 の `public/videos/` 配下のファイル名。`POST /api/publish` はこのファイルを配信する
+- `renderedFilePath`: レンダリング済み MP4 の `data/` からの相対パス（例: `projects/<id>/video.mp4`）。`POST /api/publish` はこのファイルを配信する
 - `readyToPublish`: 配信対象かどうか
 
 ### 7. `PublishLog` (配信ログ & スケジュール)

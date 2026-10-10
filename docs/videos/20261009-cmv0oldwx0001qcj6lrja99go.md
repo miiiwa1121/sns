@@ -3,7 +3,7 @@
 - プロジェクトID: `cmv0oldwx0001qcj6lrja99go`
 - 状態: published
 - 尺: 44.0 秒（11 行）
-- 動画ファイル: `public/videos/cmv0oldwx0001qcj6lrja99go.mp4`（Git 管理外）
+- 動画ファイル: `data/projects/cmv0oldwx0001qcj6lrja99go/video.mp4`（Git 管理外）
 - 声: VOICEVOX:ずんだもん
 - 狙い: GPT-6 の目玉機能 Intelligent UI を「答えが文章じゃなく画面になる」の一言で伝え、無料でも今日から試せることを示す
 

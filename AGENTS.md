@@ -63,6 +63,10 @@ docs は**日本語**で、実務レベル一式を揃える（要件定義 / �
   - 本番フェーズ: Claude 3.7 / Gemini Flash API 等への移行可能設計
 - **動画制作エンジン**: Remotion (9:16縦型ショートプレビュー / レンダリング)
 
+## ディレクトリ構成
+
+`src/`（Next.js）、`agent/`（エージェント CLI）、`remotion/`（動画テンプレート）、`public/`（固定素材のみ）、`data/`（生成物。git 管理外）。生成物は `data/projects/<id>/` に企画ごとにまとまる。詳細は [docs/architecture/directory-structure.md](docs/architecture/directory-structure.md)。
+
 ## 主要コマンド
 
 ```bash
