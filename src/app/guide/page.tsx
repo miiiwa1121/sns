@@ -1,5 +1,5 @@
 const FLOW: { step: string; owner: 'エージェント' | 'あなた'; what: string }[] = [
-  { step: '1. 依頼', owner: 'あなた', what: '「新しい動画を作る」でテーマ（任意）と AI（Claude Code / Antigravity）を選んで依頼する' },
+  { step: '1. 依頼', owner: 'あなた', what: '「作成する」でアカウント・お題（任意）・構成案・リサーチ手法・禁止事項を選んで依頼する（作業する AI は「AI 連携」で決める）' },
   { step: '2. リサーチ', owner: 'エージェント', what: 'X や公式発表で話題を調べ、出典つきで登録する' },
   { step: '3. 台本', owner: 'エージェント', what: '台本と各 SNS の投稿文を書く' },
   { step: '4. 制作', owner: 'エージェント', what: '音声と動画を作り、字幕などを自分で点検する' },

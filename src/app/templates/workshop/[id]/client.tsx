@@ -134,11 +134,13 @@ export function WorkshopHeader({
 // ---------- 左の列: AI に渡すプロンプト ----------
 
 // プロンプトの各節が、どこから来た情報か。構成案から来る節だけを強調し、ほかはラベルで示す
-type PromptSource = 'template' | 'account' | 'topic' | 'conversation' | 'fixed';
+type PromptSource = 'template' | 'account' | 'research' | 'prohibition' | 'topic' | 'conversation' | 'fixed';
 
 const SOURCE_LABEL: Record<PromptSource, string> = {
   template: '構成案から',
   account: 'アカウントから',
+  research: 'リサーチ手法から',
+  prohibition: '禁止事項から',
   topic: '話題から',
   conversation: '会話から',
   fixed: '固定',
@@ -148,7 +150,9 @@ const SOURCE_LABEL: Record<PromptSource, string> = {
 const SOURCE_BY_HEADING: [RegExp, PromptSource][] = [
   [/^## (構成案|今の構成案の下書き)/, 'template'],
   [/^## チャンネル/, 'account'],
-  [/^## (今回の依頼|試作の話題|話題)/, 'topic'],
+  [/^## リサーチ手法/, 'research'],
+  [/^## 禁止事項/, 'prohibition'],
+  [/^## (今回の依頼|試作の話題|話題|リサーチの結果)/, 'topic'],
   [/^## (これまでのやりとり|担当者の今回の発言)/, 'conversation'],
 ];
 

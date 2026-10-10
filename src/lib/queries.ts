@@ -16,9 +16,9 @@ export async function loadProject(id: string) {
   return prisma.project.findUnique({ where: { id }, include: projectInclude });
 }
 
-export async function loadProjects(accountId: string) {
+/** 企画の一覧（全アカウント） */
+export async function loadProjects() {
   const projects = await prisma.project.findMany({
-    where: { accountId },
     include: projectInclude,
     orderBy: { createdAt: 'desc' },
   });

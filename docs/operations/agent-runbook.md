@@ -134,6 +134,7 @@ npm run -s agent -- approve <projectId>
 ```
 
 - エージェントが自分の判断で `approve` してはいけない（Decision 002 / 010）。
+- 管理画面からの依頼で AI が作業しているあいだ（Antigravity は完了・中止から30分も）は、`approve`・`publish`・`publish:record`・`metrics:*`・`analyze` をコマンドからは実行できない（Decision 019）。管理画面のボタンからは実行できる。
 - 作り直し（`produce`）すると承認は外れる。
 
 ## 6. 配信

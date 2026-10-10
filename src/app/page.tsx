@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { loadYourTurn, Task } from '@/lib/queries';
-import { PROVIDER_LABEL, loadRunningJobs } from '@/lib/jobs';
+import { jobAiLabel, loadRunningJobs } from '@/lib/jobs';
 import { OwnerBadge, StepBar, formatDate } from './ui';
 
 function TaskRow({ task, showDue }: { task: Task; showDue?: boolean }) {
@@ -38,7 +38,7 @@ export default async function HomePage() {
                   <span className="title">{j.project?.title ?? j.theme ?? 'おまかせ'}</span>
                 </div>
                 <div className="side">
-                  <span className="badge">{PROVIDER_LABEL[j.provider] ?? j.provider}</span>
+                  <span className="badge">{jobAiLabel(j)}</span>
                   <span style={{ fontWeight: 700 }}>作業中</span>
                 </div>
               </Link>
@@ -54,7 +54,7 @@ export default async function HomePage() {
             <div className="empty" style={{ display: 'block' }}>
               <p>今やることはありません。</p>
               <p className="muted">
-                次の動画は <Link href="/new" style={{ color: 'var(--accent-strong)', fontWeight: 700 }}>新しい動画を作る</Link> から依頼できます。
+                次の動画は<Link href="/new" style={{ color: 'var(--accent-strong)', fontWeight: 700 }}>「作成する」</Link>から依頼できます。
               </p>
             </div>
           ) : (

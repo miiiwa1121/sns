@@ -1,16 +1,11 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { getCurrentChannel } from '@/lib/channel';
 import { safeJson } from '@/lib/json';
-import { NoChannel } from '../ui';
 
 export default async function ResearchPage() {
-  const channel = await getCurrentChannel();
-  if (!channel) return <div className="page"><h1>リサーチ</h1><NoChannel /></div>;
   const trends = await prisma.trendResearch.findMany({
-    where: { accountId: channel.id },
-    include: { projects: { select: { id: true, title: true } } },
+    include: { account: { select: { name: true } }, projects: { select: { id: true, title: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -25,7 +20,7 @@ export default async function ResearchPage() {
           <div key={t.id} className="card stack" style={{ gap: 8 }}>
             <div className="row between" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
               <div className="stack" style={{ gap: 4, flex: 1, minWidth: 220 }}>
-                <span className="muted">{t.createdAt.toLocaleDateString('ja-JP')}</span>
+                <span className="muted">{t.account.name} ・ {t.createdAt.toLocaleDateString('ja-JP')}</span>
                 <strong>{t.topic}</strong>
               </div>
               {/* このリサーチから作った企画へ */}

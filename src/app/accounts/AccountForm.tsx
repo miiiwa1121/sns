@@ -14,21 +14,24 @@ type Values = {
   concept?: string;
   targetAudience?: string;
   defaultTemplateId?: string | null;
+  defaultResearchMethodId?: string | null;
   handles?: Partial<Record<PlatformType, string>>;
 };
 
-type TemplateOption = { id: string; name: string };
+type Option = { id: string; name: string };
 
 export function AccountForm({
   action,
   values = {},
   isNew,
   templates,
+  researchMethods,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   values?: Values;
   isNew?: boolean;
-  templates: TemplateOption[];
+  templates: Option[];
+  researchMethods: Option[];
 }) {
   const [state, run, pending] = useActionState(action, null);
   const field = (name: 'name' | 'slug' | 'category' | 'concept' | 'targetAudience', label: string, opts: { multiline?: boolean; placeholder?: string; hint?: string } = {}) => (
@@ -55,6 +58,13 @@ export function AccountForm({
           {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
         <span className="muted">依頼するときに選び直せます。話し方・台本のルール・尺や流れは、構成案で決めます</span>
+      </div>
+      <div className="field">
+        <label htmlFor="defaultResearchMethodId">既定のリサーチ手法</label>
+        <select id="defaultResearchMethodId" name="defaultResearchMethodId" className="input" defaultValue={values.defaultResearchMethodId ?? researchMethods[0]?.id}>
+          {researchMethods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+        <span className="muted">依頼するときに選び直せます。対象期間・調べる場所・話題の選び方を決めます</span>
       </div>
       <div className="field">
         <label>SNS のハンドル</label>

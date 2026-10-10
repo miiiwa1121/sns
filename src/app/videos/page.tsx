@@ -1,9 +1,7 @@
 import Link from 'next/link';
 import { ExternalLink, LayoutGrid, Smartphone, Table } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { getCurrentChannel } from '@/lib/channel';
 import { weightedRetention } from '@/lib/agents/performanceDiagnosis';
-import { NoChannel } from '../ui';
 import { mediaExists, mediaUrlPath, thumbRelPath } from '@/lib/storage';
 import { VideoFeed, VideoTable, type VideoRow } from './client';
 
@@ -15,16 +13,14 @@ const VIEWS = [
 ] as const;
 type View = (typeof VIEWS)[number]['key'];
 
-// 作った動画の一覧（選択中のアカウント）
+// 作った動画の一覧（全アカウント）
 export default async function VideosPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
-  const channel = await getCurrentChannel();
-  if (!channel) return <div className="page"><h1>動画</h1><NoChannel /></div>;
   const { view: requested } = await searchParams;
   const view: View = VIEWS.some((v) => v.key === requested) ? (requested as View) : 'grid';
 
   const projects = await prisma.project.findMany({
-    where: { accountId: channel.id, shortClips: { some: { renderedFilePath: { not: null } } } },
-    include: { shortClips: true, publishLogs: true, analytics: true, template: { select: { name: true } } },
+    where: { shortClips: { some: { renderedFilePath: { not: null } } } },
+    include: { account: { select: { name: true } }, shortClips: true, publishLogs: true, analytics: true, template: { select: { name: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -38,6 +34,7 @@ export default async function VideosPage({ searchParams }: { searchParams: Promi
     return {
       id: p.id,
       title: p.title,
+      accountName: p.account.name,
       createdAt: p.createdAt.toISOString(),
       durationSec: clip.durationSec,
       status: status.label,
@@ -88,7 +85,7 @@ function VideoGrid({ rows }: { rows: VideoRow[] }) {
             <span className={`badge ${r.statusClass}`} style={{ alignSelf: 'flex-start' }}>{r.status}</span>
             <Link href={`/projects/${r.id}`} className="title">{r.title}</Link>
             <span className="muted">
-              {new Date(r.createdAt).toLocaleDateString('ja-JP')} ・ {r.durationSec}秒{r.views !== null && ` ・ ${r.views.toLocaleString()} 回再生`}
+              {r.accountName} ・ {new Date(r.createdAt).toLocaleDateString('ja-JP')} ・ {r.durationSec}秒{r.views !== null && ` ・ ${r.views.toLocaleString()} 回再生`}
             </span>
             {r.youtubeUrl && (
               <a href={r.youtubeUrl} target="_blank" rel="noreferrer" className="row muted" style={{ gap: 4 }}>

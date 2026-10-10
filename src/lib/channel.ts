@@ -1,15 +1,12 @@
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 
-// 選択中のチャンネル（Account）は cookie に slug で持つ。未選択・不正なら最初のチャンネル
-export const CHANNEL_COOKIE = 'channel';
-
+// アカウント（Account）の一覧。画面全体でアカウントを選ぶ仕組みはない（2026-10-11 に廃止）。
+// どのアカウントの動画を作るかは、依頼のときに選ぶ
 export async function listChannels() {
   return prisma.account.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } });
 }
 
-export async function getCurrentChannel() {
-  const slug = (await cookies()).get(CHANNEL_COOKIE)?.value;
-  const channels = await listChannels();
-  return channels.find((c) => c.slug === slug) ?? channels[0] ?? null;
+// 指示書の見本や、構成案の相談の前提に使うアカウント（一覧の先頭）
+export async function firstChannel() {
+  return (await listChannels())[0] ?? null;
 }

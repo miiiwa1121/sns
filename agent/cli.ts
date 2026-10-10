@@ -12,13 +12,11 @@ import { fetchYouTubeMetrics } from '../src/lib/analytics/youtubeMetrics';
 import { produceShort, ScriptLine } from './produce';
 import { Scene } from '../remotion/types';
 import { validateScriptLines } from '../src/lib/script';
+import { DEFAULT_PRODUCE, parseProduce, type ProduceSettings } from '../src/lib/services/produceSettings';
 import { nextAction } from '../src/lib/workflow';
 import { projectWorkDir, resolveMediaPath } from '../src/lib/storage';
 import { execFileSync } from 'child_process';
 
-// 声の指定は agent/tts.ts を参照。AGENT_VOICE で上書きできる
-const DEFAULT_VOICE = process.env.AGENT_VOICE || 'voicevox:ずんだもん:ノーマル';
-const DEFAULT_SPEED = 1.15;
 
 // ---------- 引数 ----------
 
@@ -58,11 +56,16 @@ function isPlatform(p: string): p is PlatformType {
   return (PLATFORMS as string[]).includes(p);
 }
 
+// --account がなければ、依頼で動いているときは依頼のアカウント、それ以外は一覧の先頭。
+// 依頼で動いているときに別のアカウントを指定したら断る（別のアカウントの知見を読んだり、リサーチを登録したりしないように）
 async function resolveAccount(slug?: string) {
+  const jobId = process.env.AGENT_JOB_ID;
+  const job = jobId ? await prisma.agentJob.findUnique({ where: { id: jobId }, include: { account: true } }) : null;
   const account = slug
     ? await prisma.account.findUnique({ where: { slug } })
-    : await prisma.account.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'asc' } });
+    : job?.account ?? (await prisma.account.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'asc' } }));
   if (!account) throw new UsageError(slug ? `アカウント ${slug} が見つかりません` : 'アカウントが登録されていません');
+  if (job && account.id !== job.accountId) throw new UsageError(`この依頼のアカウントは ${job.account.slug} です（${account.slug} は使えません）`);
   return account;
 }
 
@@ -142,6 +145,8 @@ async function trendAdd(file: string, flags: Record<string, string | true>) {
       sourcesJson: JSON.stringify(sources),
     },
   });
+  // 依頼のリサーチの工程で登録したら、依頼に記録する（次の台本の工程がこのリサーチを使う）
+  if (process.env.AGENT_JOB_ID) await prisma.agentJob.update({ where: { id: process.env.AGENT_JOB_ID }, data: { trendResearchId: trend.id } });
   console.log(`✅ リサーチを登録しました: ${trend.id}  ${trend.topic}`);
 }
 
@@ -184,6 +189,8 @@ async function projectCreate(file: string, flags: Record<string, string | true>)
     ? (await prisma.trendResearch.findUnique({ where: { id: spec.trendId }, include: { account: true } }))?.account
     : await resolveAccount(flags.account as string | undefined);
   if (!account) throw new UsageError(`リサーチ ${spec.trendId} が見つかりません`);
+  // 依頼で作る企画は、依頼で選んだアカウントのもの（リサーチが別のアカウントに登録されていたら断る）
+  if (job && account.id !== job.accountId) throw new UsageError(`リサーチ ${spec.trendId} は、この依頼のアカウントのものではありません。trend:add に --account を付けて登録し直してください`);
 
   const tagsJson = (tags?: string[]) => (tags && tags.length > 0 ? JSON.stringify(tags) : null);
   const withTags = (text: string | undefined, tags?: string[]) =>
@@ -287,28 +294,31 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
 
   const handle = (await prisma.platformConnection.findFirst({ where: { accountId: project.accountId, platform: 'youtube' } }))?.handle || '';
   console.log(`🎬 制作: ${project.title}`);
-  const speed = typeof flags.speed === 'string' ? Number(flags.speed) : DEFAULT_SPEED;
-  if (!Number.isFinite(speed) || speed < 0.5 || speed > 2) throw new UsageError('--speed は 0.5〜2.0 の数値です');
+  // 制作の設定（声の指定は agent/tts.ts を参照）: 引数 > この動画を前に作ったときの設定（作り直しは同じ声で）> 既定
+  const base = parseProduce(clip.produceJson) ?? DEFAULT_PRODUCE;
+  const settings: ProduceSettings = {
+    voice: typeof flags.voice === 'string' ? flags.voice : base.voice,
+    speed: typeof flags.speed === 'string' ? Number(flags.speed) : base.speed,
+    bgm: typeof flags.bgm === 'string' ? flags.bgm : base.bgm,
+  };
+  if (!Number.isFinite(settings.speed) || settings.speed < 0.5 || settings.speed > 2) throw new UsageError('--speed は 0.5〜2.0 の数値です');
   const result = await produceShort({
     projectId: project.id,
     title: project.title,
     brandName: project.account.name,
     handle,
     lines,
-    voice: typeof flags.voice === 'string' ? flags.voice : DEFAULT_VOICE,
-    speed,
-    bgmSrc: typeof flags.bgm === 'string' ? flags.bgm : null,
+    voice: settings.voice,
+    speed: settings.speed,
+    bgmSrc: settings.bgm || null,
   });
 
-  // 声のクレジット（VOICEVOX の利用規約で必要）を投稿文の末尾に入れる。X は文字数が厳しいので動画内の表記に任せる
-  if (result.credit) {
-    for (const log of project.publishLogs.filter((l) => l.platform !== 'x')) {
-      if (log.caption?.includes(result.credit)) continue;
-      await prisma.publishLog.update({
-        where: { id: log.id },
-        data: { caption: `${log.caption ?? ''}\n\n音声: ${result.credit}`.trim() },
-      });
-    }
+  // 声のクレジット（VOICEVOX の利用規約で必要）を投稿文の末尾に入れる。X は文字数が厳しいので動画内の表記に任せる。
+  // 声を変えて作り直したときに前の声のクレジットが残らないよう、いったん消してから入れ直す
+  for (const log of project.publishLogs.filter((l) => l.platform !== 'x')) {
+    const base = (log.caption ?? '').replace(/\n*音声: VOICEVOX:[^\n]*/g, '').trim();
+    const caption = result.credit ? `${base}\n\n音声: ${result.credit}`.trim() : base;
+    if (caption !== (log.caption ?? '')) await prisma.publishLog.update({ where: { id: log.id }, data: { caption: caption || null } });
   }
 
   await prisma.$transaction([
@@ -318,6 +328,8 @@ async function produce(projectId: string, flags: Record<string, string | true>) 
         renderedFilePath: result.videoRelPath,
         // どの台本で作った動画か（台本を直した後に作り直したかの判定に使う）
         renderedScriptJson: clip.scriptJson,
+        // どの設定で作った動画か（作り直しも同じ声・速さ・BGM で行う）
+        produceJson: JSON.stringify(settings),
         durationSec: Math.round(result.durationSec),
         endTimeSec: Math.round(result.durationSec),
         // 作り直したら承認はやり直し
@@ -565,14 +577,43 @@ const USAGE = `使い方: npm run agent -- <command>
   analyze <projectId> [--save-knowledge]   実測値の分析（知見の保存）
   knowledge                                蓄積された知見（次の台本に反映する）`;
 
+// Antigravity は「動画ができたか」で完了とみなすが、その後も点検・作り直しを続けるため、完了（または中止）からこの間は作業中として扱う
+const ANTIGRAVITY_GRACE_MS = 30 * 60 * 1000;
+
+/**
+ * AI が作業中の依頼。あれば説明の文字列を返す。
+ * Claude Code は依頼のプロセスに AGENT_JOB_ID を渡すので上で断れるが、Antigravity は IDE で動くため環境変数が渡らない。
+ * そこで、作業中の依頼があるあいだは、誰が打ったコマンドでも人の判断が必要な操作を断る（管理画面のボタンは CLI を通らないので影響しない）
+ */
+async function workingJob(): Promise<string | null> {
+  const since = new Date(Date.now() - ANTIGRAVITY_GRACE_MS);
+  const job = await prisma.agentJob.findFirst({
+    where: {
+      OR: [
+        { status: 'running' },
+        { provider: 'antigravity', status: { in: ['succeeded', 'canceled'] }, finishedAt: { gte: since } },
+      ],
+    },
+    include: { account: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!job) return null;
+  const label = `${job.account.name}・${job.theme ?? 'おまかせ'}`;
+  if (job.status === 'running') return label;
+  const until = new Date(job.finishedAt!.getTime() + ANTIGRAVITY_GRACE_MS);
+  return `${label}。Antigravity は ${until.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} まで作業中とみなします`;
+}
+
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { positional: [a, b, c], flags } = parseArgs(rest);
 
-  // 管理画面からの依頼で AI が動いているときは、人の判断が必要な操作を拒否する（指示書に加えた二重の安全装置）
+  // 管理画面からの依頼で AI が動いているときは、人の判断が必要な操作を拒否する（指示書の禁止事項に加えた鍵）
   const HUMAN_ONLY = ['approve', 'publish', 'publish:record', 'metrics:record', 'metrics:collect', 'analyze'];
-  if (process.env.AGENT_JOB_ID && HUMAN_ONLY.includes(command)) {
-    throw new UsageError(`「${command}」は人が管理画面で行う操作です（依頼で動くエージェントは実行できません）`);
+  if (HUMAN_ONLY.includes(command)) {
+    if (process.env.AGENT_JOB_ID) throw new UsageError(`「${command}」は人が管理画面で行う操作です（依頼で動くエージェントは実行できません）`);
+    const blocker = await workingJob();
+    if (blocker) throw new UsageError(`AI が作業中の依頼（${blocker}）があるため、「${command}」はコマンドからは実行できません。管理画面から行うか、作業が終わってから実行してください`);
   }
 
   switch (command) {

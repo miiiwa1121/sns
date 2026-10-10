@@ -27,7 +27,7 @@ data/
       preview.png              確認用静止画（字幕1行1コマ）
       manual/                  手動投稿パッケージ（video.mp4・captions.md）
       stage/                   レンダリング用の一時素材。成功すると自動で消える
-  jobs/<jobId>/                画面からの依頼の作業フォルダ（prompt.md・project.json・log.jsonl）
+  jobs/<jobId>/                画面からの依頼の作業フォルダ（工程ごとの指示書 prompt-research.md / prompt-script.md / prompt-check.md・project.json・log.jsonl）
   scratch/                     手作業のリサーチ・台本の JSON など。置き場所は自由
 ```
 

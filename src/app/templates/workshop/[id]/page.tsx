@@ -3,18 +3,21 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { safeJson } from '@/lib/json';
 import { SYSTEM_PROMPT, promptsForDisplay, workshopContext, type SampleScript } from '@/lib/services/workshopService';
-import { buildJobPrompt } from '../../../../../agent/job-prompt';
+import { previewJobPrompts } from '@/lib/jobPromptPreview';
+import { SCRIPT_SYSTEM_PROMPT } from '../../../../../agent/job-prompt';
 import {
   deleteWorkshop,
   renameWorkshop,
   requestWorkshopSample,
+  saveChatAi,
   sendWorkshopChat,
   stopWorkshopAction,
 } from '../../../actions';
 import { AutoRefresh } from '../../../jobs/[id]/client';
 import { PromptViewer, SamplePreview, WorkshopHeader } from './client';
 import { ChatScroll, ResizableColumns } from '@/app/components/workspace';
-import { ChatForm } from '@/app/components/chat';
+import { ChatAiPicker, ChatForm } from '@/app/components/chat';
+import { chatAiOptions, loadAiSettings } from '@/lib/ai/providers';
 
 // 構成案を AI と相談しながら作る画面。
 // ヘッダー: 戻る・名前（その場で変更）・試作する／停止・自動保存の表示・削除（構成案ごと）
@@ -48,15 +51,8 @@ export default async function WorkshopPage({
 
   // 左の列に出すプロンプト。どれも今の下書きと会話から、AI に渡すときと同じ組み立て方で作る
   const prompts = await promptsForDisplay(workshop);
-  const jobPrompt = buildJobPrompt({
-    jobId: '(依頼ID)',
-    repoDir: '(リポジトリ)',
-    workDir: '(作業フォルダ)',
-    theme: null,
-    channel: workshop.account,
-    template: { name: workshop.name, body: workshop.body },
-  });
-  const withSystem = (text: string) => `# システムプロンプト\n${SYSTEM_PROMPT}\n\n# プロンプト\n${text}`;
+  const jobPrompt = (await previewJobPrompts(workshop.account, { template: { name: workshop.name, body: workshop.body } })).script;
+  const withSystem = (text: string, system = SYSTEM_PROMPT) => `# システムプロンプト\n${system}\n\n# プロンプト\n${text}`;
 
   return (
     <div className="page full-page">
@@ -78,9 +74,9 @@ export default async function WorkshopPage({
               tabs={[
                 {
                   key: 'job',
-                  label: '動画づくりの依頼',
-                  note: `この構成案で動画づくりを依頼したときに、AI に渡す指示書です（${workshop.account.name}・テーマおまかせの見本）。「構成案」の節が、ここで作っている下書きです。`,
-                  text: jobPrompt,
+                  label: '動画づくりの依頼（台本）',
+                  note: `この構成案で動画づくりを依頼したときに、台本の工程で AI に渡す指示書です（${workshop.account.name} の見本）。「構成案」の節が、ここで作っている下書きです。リサーチの結果は依頼のたびに決まります。`,
+                  text: withSystem(jobPrompt, SCRIPT_SYSTEM_PROMPT),
                 },
                 { key: 'sample', label: '試作', note: '「試作する」を押したときに AI に渡すプロンプトです（前回の話題で試作する場合）。', text: withSystem(prompts.sample) },
                 { key: 'chat', label: '相談', note: '相談を送ったときに AI に渡すプロンプトです。最後の節に、送った内容が入ります。', text: withSystem(prompts.chat) },
@@ -140,6 +136,7 @@ export default async function WorkshopPage({
                 </div>
               ))}
             </ChatScroll>
+            <ChatAiPicker {...await chatAiOptions('workshop', await loadAiSettings())} save={saveChatAi.bind(null, 'workshop')} />
             <ChatForm action={sendWorkshopChat.bind(null, workshop.id)} disabled={busy} placeholder="例: 冒頭2行で結論を言い切る型にして試作して / 5行目が長いので行数を減らして" />
           </section>
         }

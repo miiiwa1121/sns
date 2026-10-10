@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { ChildProcess, execFileSync, spawn } from 'child_process';
+import { saveVoicevoxSpeakers } from '../src/lib/services/produceSettings';
 
 // 声の指定:
 //   "voicevox:<キャラクター名>:<スタイル名>"（例: "voicevox:ずんだもん:ノーマル"）
@@ -50,32 +51,51 @@ async function engineAlive(): Promise<boolean> {
   }
 }
 
+/** VOICEVOX エンジンが動いていなければ起動する（起動したときだけプロセスを返す。止めるのは呼んだ側） */
+async function ensureEngine(): Promise<ChildProcess | null> {
+  if (await engineAlive()) return null;
+  if (!fs.existsSync(VOICEVOX_ENGINE)) {
+    throw new Error(`VOICEVOX エンジンが見つかりません: ${VOICEVOX_ENGINE}（docs/operations/agent-runbook.md の前提を参照）`);
+  }
+  const { port, hostname } = new URL(VOICEVOX_URL);
+  console.log('  🔈 VOICEVOX エンジンを起動しています...');
+  const engine = spawn(VOICEVOX_ENGINE, ['--host', hostname, '--port', port], { stdio: 'ignore' });
+  const deadline = Date.now() + 120_000;
+  while (!(await engineAlive())) {
+    if (Date.now() > deadline || engine.exitCode !== null) {
+      engine.kill();
+      throw new Error('VOICEVOX エンジンの起動に失敗しました');
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return engine;
+}
+
+type Speaker = { name: string; styles: { name: string; id: number }[] };
+
+// 声の一覧を取り、画面の選択肢に使えるよう残す（src/lib/services/produceSettings.ts）
+async function fetchSpeakers(): Promise<Speaker[]> {
+  const speakers = (await (await fetch(`${VOICEVOX_URL}/speakers`)).json()) as Speaker[];
+  saveVoicevoxSpeakers(speakers);
+  return speakers;
+}
+
+/** 画面の「声の一覧を読み込む」。エンジンを（必要なら起動して）一覧を取り、起動したなら止める */
+export async function listVoicevoxSpeakers(): Promise<number> {
+  const engine = await ensureEngine();
+  try {
+    return (await fetchSpeakers()).reduce((n, s) => n + s.styles.length, 0);
+  } finally {
+    engine?.kill();
+  }
+}
+
 /**
  * VOICEVOX エンジンに接続する。起動していなければこの場で起動し、close() で止める。
  */
 async function createVoicevoxTts(character: string, style: string, speed: number): Promise<Tts> {
-  let engine: ChildProcess | null = null;
-  if (!(await engineAlive())) {
-    if (!fs.existsSync(VOICEVOX_ENGINE)) {
-      throw new Error(`VOICEVOX エンジンが見つかりません: ${VOICEVOX_ENGINE}（docs/operations/agent-runbook.md の前提を参照）`);
-    }
-    const { port, hostname } = new URL(VOICEVOX_URL);
-    console.log('  🔈 VOICEVOX エンジンを起動しています...');
-    engine = spawn(VOICEVOX_ENGINE, ['--host', hostname, '--port', port], { stdio: 'ignore' });
-    const deadline = Date.now() + 120_000;
-    while (!(await engineAlive())) {
-      if (Date.now() > deadline || engine.exitCode !== null) {
-        engine.kill();
-        throw new Error('VOICEVOX エンジンの起動に失敗しました');
-      }
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-  }
-
-  const speakers = (await (await fetch(`${VOICEVOX_URL}/speakers`)).json()) as {
-    name: string;
-    styles: { name: string; id: number }[];
-  }[];
+  const engine = await ensureEngine();
+  const speakers = await fetchSpeakers();
   const speaker = speakers.find((s) => s.name === character);
   const styleId = speaker?.styles.find((s) => s.name === style)?.id;
   if (styleId === undefined) {

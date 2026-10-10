@@ -1,8 +1,8 @@
 import { JOB_STEPS, LogEntry, jobProgress } from '@/lib/jobs';
 
-// 依頼の工程の帯と作業の記録（Claude Code のみ）。作業状況・依頼の詳細で使う
-export function JobProgress({ entries, done }: { entries: LogEntry[]; done: boolean }) {
-  const step = done ? JOB_STEPS.length : jobProgress(entries);
+// 依頼の工程の帯と作業の記録。作業状況・依頼の詳細で使う
+export function JobProgress({ phase, done }: { phase: string | null; done: boolean }) {
+  const step = done ? JOB_STEPS.length : jobProgress(phase);
   return (
     <div>
       <div className="steps">

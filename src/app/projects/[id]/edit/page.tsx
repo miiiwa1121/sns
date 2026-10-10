@@ -4,10 +4,11 @@ import { safeJson } from '@/lib/json';
 import type { ScriptLine } from '@/lib/script';
 import { mediaExists, mediaUrlPath, thumbRelPath } from '@/lib/storage';
 import { editBlockedReason, renderProgress } from '@/lib/services/editService';
-import { renderProject, saveProjectScript, sendEditChat, stopProjectWork } from '@/app/actions';
+import { renderProject, saveChatAi, saveProjectScript, sendEditChat, stopProjectWork } from '@/app/actions';
 import { AutoRefresh } from '../../../jobs/[id]/client';
 import { ChatScroll } from '@/app/components/workspace';
-import { ChatForm } from '@/app/components/chat';
+import { ChatAiPicker, ChatForm } from '@/app/components/chat';
+import { chatAiOptions, loadAiSettings } from '@/lib/ai/providers';
 import { VideoEditor } from './editor';
 
 // 動画編集画面（企画の「1. 動画を確認する」から）
@@ -69,6 +70,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
                 </div>
               ))}
             </ChatScroll>
+            <ChatAiPicker {...await chatAiOptions('edit', await loadAiSettings())} save={saveChatAi.bind(null, 'edit')} />
             <ChatForm action={sendEditChat.bind(null, project.id)} disabled={chatBusy || rendering || blockedReason !== null} placeholder="例: 3行目を短くして / 最後の行をもっと前向きに" />
           </>
         }

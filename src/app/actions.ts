@@ -3,14 +3,13 @@
 // 管理画面からの操作。Server Actions は Next.js が Origin と Host を照合するため、別サイトからは呼べない。
 // 開発サーバーは 127.0.0.1 にのみバインドしている（ログイン機能は持たない）。
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import { projectDir } from '@/lib/storage';
-import { CHANNEL_COOKIE, getCurrentChannel } from '@/lib/channel';
+import { firstChannel } from '@/lib/channel';
 import { PLATFORM_LABEL, PlatformType } from '@/lib/types';
 import { publishProject, recordManualPublish, extractYouTubeVideoId, PLATFORMS } from '@/lib/services/publishService';
 import { analyzeProject, recordMetrics } from '@/lib/services/analyticsService';
@@ -18,16 +17,23 @@ import { fetchYouTubeMetrics } from '@/lib/analytics/youtubeMetrics';
 import { formatBytes, runCleanup, saveCleanupSettings } from '@/lib/services/cleanupService';
 import { removeEnvValues, saveEnvValues } from '@/lib/envFile';
 import { listTemplates, validateTemplate } from '@/lib/services/templateService';
+import { listProhibitions, listResearchMethods, validateProhibition, validateResearchMethod } from '@/lib/services/researchMethodService';
 import { postChat, postSample, renameWorkshopTemplate, startWorkshop, stopWorkshop, workshopBusy } from '@/lib/services/workshopService';
 import { postEditChat, saveScript, startRender, stopEditChat, stopRender } from '@/lib/services/editService';
 import type { ScriptLine } from '@/lib/script';
 import { PING_SCHEMA } from '@/lib/ai/schemas';
+import type { AiSteps } from '@/lib/jobs';
+import { validateProduceRequest } from '@/lib/services/produceSettings';
 import {
   DEFAULT_MODEL,
+  JOB_PURPOSES,
   PROVIDER_LABEL,
-  PURPOSE_PROVIDERS,
+  SETTING_KEY,
   checkAntigravity,
   loadAiSettings,
+  providerProblem,
+  validateAssignment,
+  type ChatPurpose,
   providerForEnv,
   runProviderJson,
   validateApiKeyEntry,
@@ -51,14 +57,6 @@ function refreshStoryboard(projectId: string) {
 
 function isPlatform(v: unknown): v is PlatformType {
   return typeof v === 'string' && (PLATFORMS as string[]).includes(v);
-}
-
-export async function selectChannel(formData: FormData) {
-  const slug = String(formData.get('slug') ?? '');
-  const exists = await prisma.account.findUnique({ where: { slug } });
-  if (!exists) return;
-  (await cookies()).set(CHANNEL_COOKIE, slug, { sameSite: 'lax', httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
-  revalidatePath('/', 'layout');
 }
 
 export async function approveProject(projectId: string): Promise<ActionState> {
@@ -148,23 +146,50 @@ export async function deleteDraftProject(projectId: string) {
 
 // ---------- 動画づくりの依頼（AgentJob） ----------
 
-const PROVIDERS = ['claude-code', 'antigravity'] as const;
-
 export async function createVideoJob(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const provider = formData.get('provider');
+  // 工程ごとの AI は「AI 連携」の割り当てで決める（依頼の画面では選ばない）。依頼した時点の割り当てを写して残す
+  const ai = await loadAiSettings();
+  const steps = Object.fromEntries(JOB_PURPOSES.map((p) => [p, ai[p]])) as AiSteps;
+  // 制作の声・速さ・BGM（"auto" は「おまかせ」= 台本の担当 AI が選ぶ）
+  const pick = (k: string) => {
+    const v = String(formData.get(k) ?? 'auto');
+    return v === 'auto' ? null : v;
+  };
+  const speed = pick('produceSpeed');
+  const produce = { voice: pick('produceVoice'), speed: speed === null ? null : Number(speed), bgm: pick('produceBgm') };
+  const produceError = validateProduceRequest(produce);
+  if (produceError) return fail(produceError);
+  const problem = JOB_PURPOSES.map((p) => providerProblem(steps[p].provider, ai)).find(Boolean);
+  if (problem) return fail(problem);
   const theme = String(formData.get('theme') ?? '').trim().slice(0, 300) || null;
-  if (!PROVIDERS.includes(provider as (typeof PROVIDERS)[number])) return fail('AI を選んでください');
-  const channel = await getCurrentChannel();
-  if (!channel) return fail('チャンネルがありません');
+  const channel = await prisma.account.findFirst({ where: { id: String(formData.get('accountId') ?? ''), isActive: true } });
+  if (!channel) return fail('アカウントを選んでください');
   // 同時に動かすのは1件まで（音声合成・レンダリングが重いため）
   const running = await prisma.agentJob.findFirst({ where: { status: 'running' } });
   if (running) return fail('作業中の依頼があります。終わってから依頼してください');
   const template = (await listTemplates()).find((t) => t.id === formData.get('templateId'));
   if (!template) return fail('構成案を選んでください');
+  const researchMethod = (await listResearchMethods()).find((m) => m.id === formData.get('researchMethodId'));
+  if (!researchMethod) return fail('リサーチ手法を選んでください');
+  const selected = new Set(formData.getAll('prohibitionIds').map(String));
+  const prohibitions = (await listProhibitions()).filter((p) => selected.has(p.id)).map((p) => p.text);
 
-  // 構成案は名前と本文の写しも残す（あとで構成案を編集・削除しても、何で作ったか分かるように）
+  // 構成案・リサーチ手法・禁止事項は本文の写しも残す（あとで編集・削除しても、何で作ったか分かるように）
   const job = await prisma.agentJob.create({
-    data: { accountId: channel.id, provider: String(provider), theme, templateId: template.id, templateName: template.name, templateBody: template.body },
+    data: {
+      accountId: channel.id,
+      provider: 'steps',
+      aiStepsJson: JSON.stringify(steps),
+      produceJson: JSON.stringify(produce),
+      theme,
+      templateId: template.id,
+      templateName: template.name,
+      templateBody: template.body,
+      researchMethodId: researchMethod.id,
+      researchMethodName: researchMethod.name,
+      researchMethodBody: researchMethod.body,
+      prohibitionsJson: JSON.stringify(prohibitions),
+    },
   });
   // 依頼の実行は別プロセスで行う（画面の応答を待たせない）
   const child = spawn('npx', ['tsx', 'agent/job-runner.ts', job.id], { cwd: process.cwd(), detached: true, stdio: 'ignore' });
@@ -176,14 +201,20 @@ export async function createVideoJob(_prev: ActionState, formData: FormData): Pr
 export async function cancelJob(jobId: string): Promise<ActionState> {
   const job = await prisma.agentJob.findUnique({ where: { id: jobId } });
   if (!job || job.status !== 'running') return fail('作業中の依頼ではありません');
+  // 先に中止を記録する（依頼を進めているプロセスは、工程の合間にこれを見て止まる）
+  await prisma.agentJob.update({ where: { id: jobId }, data: { status: 'canceled', finishedAt: new Date(), pid: null } });
   if (job.pid) {
+    // 工程の作業（Claude Code・CLI）はプロセスグループごと止める。以前の依頼はグループでないので、本体だけ止める
     try {
-      process.kill(job.pid);
+      process.kill(-job.pid);
     } catch {
-      // すでに終了している
+      try {
+        process.kill(job.pid);
+      } catch {
+        // すでに終了している
+      }
     }
   }
-  await prisma.agentJob.update({ where: { id: jobId }, data: { status: 'canceled', finishedAt: new Date(), pid: null } });
   return done('依頼を中止しました');
 }
 
@@ -199,6 +230,7 @@ function accountFields(formData: FormData) {
     concept: get('concept'),
     targetAudience: get('targetAudience'),
     defaultTemplateId: get('defaultTemplateId') || null,
+    defaultResearchMethodId: get('defaultResearchMethodId') || null,
   };
 }
 
@@ -212,6 +244,11 @@ async function validateTemplateRef(templateId: string | null): Promise<string | 
   return (await prisma.structureTemplate.findUnique({ where: { id: templateId } })) ? null : '構成案が見つかりません';
 }
 
+async function validateResearchMethodRef(researchMethodId: string | null): Promise<string | null> {
+  if (!researchMethodId) return null;
+  return (await prisma.researchMethod.findUnique({ where: { id: researchMethodId } })) ? null : 'リサーチ手法が見つかりません';
+}
+
 function validateAccount(f: ReturnType<typeof accountFields>): string | null {
   if (!f.name || f.name.length > 50) return 'アカウント名は1〜50文字で入力してください';
   if (!f.concept) return 'コンセプトを入力してください（台本づくりに使います）';
@@ -223,7 +260,7 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
   const f = accountFields(formData);
   const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
   if (!SLUG.test(slug)) return fail('ID は半角英小文字・数字・-・_ の3〜40文字で入力してください');
-  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId));
+  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId)) ?? (await validateResearchMethodRef(f.defaultResearchMethodId));
   if (error) return fail(error);
   if (await prisma.account.findUnique({ where: { slug } })) return fail('この ID は使われています');
 
@@ -237,15 +274,13 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
       },
     },
   });
-  // 作ったアカウントに切り替える
-  (await cookies()).set(CHANNEL_COOKIE, slug, { sameSite: 'lax', httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
   revalidatePath('/', 'layout');
   redirect(`/accounts/${slug}`);
 }
 
 export async function updateAccount(accountId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const f = accountFields(formData);
-  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId));
+  const error = validateAccount(f) ?? (await validateTemplateRef(f.defaultTemplateId)) ?? (await validateResearchMethodRef(f.defaultResearchMethodId));
   if (error) return fail(error);
   await prisma.account.update({ where: { id: accountId }, data: f });
   const handles = handleFields(formData);
@@ -326,10 +361,70 @@ export async function deleteTemplate(templateId: string): Promise<ActionState> {
   redirect('/templates');
 }
 
+// ---------- リサーチ手法 ----------
+
+function researchMethodFields(formData: FormData) {
+  const get = (k: string) => String(formData.get(k) ?? '').trim();
+  return { name: get('name'), description: get('description'), body: get('body') };
+}
+
+export async function createResearchMethod(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = researchMethodFields(formData);
+  const error = validateResearchMethod(f);
+  if (error) return fail(error);
+  const created = await prisma.researchMethod.create({ data: { ...f, description: f.description || null } });
+  revalidatePath('/', 'layout');
+  redirect(`/research-methods/${created.id}`);
+}
+
+export async function updateResearchMethod(researchMethodId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const f = researchMethodFields(formData);
+  const error = validateResearchMethod(f);
+  if (error) return fail(error);
+  await prisma.researchMethod.update({ where: { id: researchMethodId }, data: { ...f, description: f.description || null } });
+  return done('保存しました（これからの依頼に使われます。作業中・作成済みの依頼は変わりません）');
+}
+
+export async function deleteResearchMethod(researchMethodId: string): Promise<ActionState> {
+  const methods = await listResearchMethods();
+  if (methods.length <= 1) return fail('リサーチ手法が1件だけのときは削除できません');
+  const inUse = await prisma.account.count({ where: { defaultResearchMethodId: researchMethodId } });
+  if (inUse > 0) return fail(`${inUse} 件のアカウントの既定になっています。先にアカウントの既定を変えてください`);
+  // 依頼からの参照は外れる（依頼には名前と本文の写しが残る）
+  await prisma.researchMethod.delete({ where: { id: researchMethodId } });
+  revalidatePath('/', 'layout');
+  redirect('/research-methods');
+}
+
+// ---------- 禁止事項 ----------
+
+export async function createProhibition(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const text = String(formData.get('text') ?? '').trim();
+  const error = validateProhibition(text);
+  if (error) return fail(error);
+  await prisma.prohibition.create({ data: { text, isDefault: formData.get('isDefault') === 'on' } });
+  return done('追加しました');
+}
+
+export async function updateProhibition(prohibitionId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const text = String(formData.get('text') ?? '').trim();
+  const error = validateProhibition(text);
+  if (error) return fail(error);
+  await prisma.prohibition.update({ where: { id: prohibitionId }, data: { text, isDefault: formData.get('isDefault') === 'on' } });
+  return done('保存しました');
+}
+
+export async function deleteProhibition(prohibitionId: string): Promise<ActionState> {
+  // 依頼には選んだ禁止事項の本文の写しが残るので、消しても記録は変わらない
+  await prisma.prohibition.deleteMany({ where: { id: prohibitionId } });
+  return done('削除しました');
+}
+
 // ---------- 構成案を AI と相談して作る ----------
 
 export async function startTemplateWorkshop(baseTemplateId: string | null) {
-  const channel = await getCurrentChannel();
+  // 相談の前提にするアカウント（コンセプト・視聴者）は一覧の先頭
+  const channel = await firstChannel();
   if (!channel) throw new Error('アカウントがありません');
   const workshop = await startWorkshop(channel.id, baseTemplateId);
   redirect(`/templates/workshop/${workshop.id}`);
@@ -394,21 +489,45 @@ export async function sendEditChat(projectId: string, _prev: ActionState, formDa
 
 // ---------- AI 連携 ----------
 
-const MODEL_NAME = /^[A-Za-z0-9._:/-]{0,100}$/;
-
+/** AI 連携の「動画づくりの依頼」（工程ごとの AI とモデル。モデルは必須） */
 export async function saveAiAssignments(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const data: Record<string, string> = {};
-  for (const purpose of ['job', 'workshop', 'edit'] as AiPurpose[]) {
+  const ai = await loadAiSettings();
+  for (const purpose of JOB_PURPOSES) {
     const provider = String(formData.get(`${purpose}Provider`) ?? '');
     const model = String(formData.get(`${purpose}Model`) ?? '').trim();
-    if (!(PURPOSE_PROVIDERS[purpose] as string[]).includes(provider)) return fail('使えない AI が選ばれています');
-    if (!MODEL_NAME.test(model)) return fail('モデル名に使えない文字が含まれています');
-    const key = purpose === 'job' ? 'aiJob' : purpose === 'workshop' ? 'aiWorkshop' : 'aiEdit';
-    data[`${key}Provider`] = provider;
-    data[`${key}Model`] = provider === 'antigravity' ? '' : model;
+    const error = await validateAssignment(purpose, provider, model, ai);
+    if (error) return fail(error);
+    data[`${SETTING_KEY[purpose]}Provider`] = provider;
+    data[`${SETTING_KEY[purpose]}Model`] = model;
   }
   await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...data }, update: data });
   return done('保存しました');
+}
+
+/** 制作の声の選択肢に、VOICEVOX の声の一覧を読み込む（エンジンを起動していなければ一時的に起動する。1分ほどかかる） */
+export async function loadVoicevoxVoices(): Promise<ActionState> {
+  // 一時的に起動したエンジンは読み込み後に止める。制作の途中だと、その制作がこのエンジンにつないで途中で切れることがあるため、制作中は断る
+  const busy = (await prisma.agentJob.count({ where: { status: 'running' } })) + (await prisma.shortClip.count({ where: { renderStatus: 'rendering' } }));
+  if (busy > 0) return fail('動画を作っている途中（依頼の作業中・動画の作り直し中）は読み込めません。終わってから読み込んでください');
+  try {
+    const { listVoicevoxSpeakers } = await import('../../agent/tts');
+    const count = await listVoicevoxSpeakers();
+    return done(`VOICEVOX の声を ${count} 種類読み込みました`);
+  } catch (error) {
+    return fail(`VOICEVOX の声の一覧を読み込めませんでした: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** 構成案の相談・動画編集のチャット欄で選ぶ AI とモデル（選んだらすぐ保存する。両方の画面で共通の設定） */
+export async function saveChatAi(purpose: ChatPurpose, provider: string, model: string): Promise<ActionState> {
+  if (purpose !== 'workshop' && purpose !== 'edit') return fail('用途が正しくありません');
+  const trimmed = model.trim();
+  const error = await validateAssignment(purpose, provider, trimmed, await loadAiSettings());
+  if (error) return fail(error);
+  const data = { [`${SETTING_KEY[purpose]}Provider`]: provider, [`${SETTING_KEY[purpose]}Model`]: trimmed };
+  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...data }, update: data });
+  return { ok: true, message: '保存しました' };
 }
 
 export async function addApiKey(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -447,7 +566,7 @@ export async function deleteLocalAi(kind: string): Promise<ActionState> {
 /** 接続テストに使うモデル（その AI を割り当てている用途のモデル。なければ既定） */
 async function testModelFor(provider: AiProvider): Promise<string> {
   const s = await loadAiSettings();
-  return (['workshop', 'edit', 'job'] as AiPurpose[]).map((u) => s[u]).find((a) => a.provider === provider && a.model)?.model ?? DEFAULT_MODEL[provider];
+  return (['workshop', 'edit', ...JOB_PURPOSES] as AiPurpose[]).map((u) => s[u]).find((a) => a.provider === provider && a.model)?.model ?? DEFAULT_MODEL[provider];
 }
 
 /** API キーの行の接続テスト */

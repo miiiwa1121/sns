@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { JOB_STATUS_LABEL, PROVIDER_LABEL, elapsed, loadRunningJobs, readJobLog } from '@/lib/jobs';
+import { JOB_STATUS_LABEL, jobAiLabel, elapsed, loadRunningJobs, readJobLog } from '@/lib/jobs';
 import { AutoRefresh } from '../jobs/[id]/client';
 import { JobLog, JobProgress } from '../jobs/JobLog';
 
@@ -25,23 +25,23 @@ export default async function ActivityPage() {
         <h2 style={{ margin: 0 }}>作業中</h2>
         {running.length === 0 && (
           <div className="card empty">
-            作業中の依頼はありません。<Link href="/new" style={{ color: 'var(--accent-strong)', fontWeight: 700 }}>新しい動画を作る</Link>
+            作業中の依頼はありません。<Link href="/new" style={{ color: 'var(--accent-strong)', fontWeight: 700 }}>「作成する」から依頼する</Link>
           </div>
         )}
         {running.map((j) => {
-          const log = j.provider === 'claude-code' ? readJobLog(j.id) : [];
+          const log = j.provider === 'antigravity' ? [] : readJobLog(j.id);
           return (
             <div key={j.id} className="card stack" style={{ gap: 14 }}>
               <div className="row between">
                 <div className="stack" style={{ gap: 2 }}>
-                  <span className="muted">{j.account.name} ・ {PROVIDER_LABEL[j.provider] ?? j.provider} ・ 経過 {elapsed(j.createdAt)}</span>
+                  <span className="muted">{j.account.name} ・ {jobAiLabel(j)} ・ 経過 {elapsed(j.createdAt)}</span>
                   <strong>{j.project?.title ?? j.theme ?? 'おまかせ'}</strong>
                 </div>
                 <Link href={`/jobs/${j.id}`} className="btn">詳細</Link>
               </div>
-              {j.provider === 'claude-code' ? (
+              {j.provider !== 'antigravity' ? (
                 <>
-                  <JobProgress entries={log} done={false} />
+                  <JobProgress phase={j.phase} done={false} />
                   <div style={{ maxHeight: 420, overflowY: 'auto', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                     <JobLog entries={log} limit={30} />
                   </div>

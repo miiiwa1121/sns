@@ -3,21 +3,23 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { Activity, BookOpen, Bot, ChartColumn, Clapperboard, Film, House, LayoutTemplate, Menu, Moon, Plus, Search, Settings, Sun, UserRound } from 'lucide-react';
-import { selectChannel } from './actions';
+import { Activity, Ban, BookOpen, Bot, BrainCircuit, ChartColumn, Clapperboard, Film, House, LayoutTemplate, Menu, Moon, Plus, ScanSearch, Search, Settings, Sun, UserRound } from 'lucide-react';
 
 const NAV = [
   { href: '/', label: 'ホーム', icon: House },
-  { href: '/new', label: '新しい動画を作る', icon: Plus },
+  { href: '/new', label: '作成する', icon: Plus },
   { href: '/activity', label: '作業状況', icon: Activity },
   { href: '/videos', label: '動画', icon: Clapperboard },
   { href: '/projects', label: '企画', icon: Film },
   { href: '/research', label: 'リサーチ', icon: Search },
   { href: '/insights', label: '分析・知見', icon: ChartColumn },
+  { href: '/manager', label: 'AI マネージャー', icon: BrainCircuit },
 ];
 const NAV_SUB = [
   { href: '/accounts', label: 'アカウント', icon: UserRound },
   { href: '/templates', label: '構成案', icon: LayoutTemplate },
+  { href: '/research-methods', label: 'リサーチ手法', icon: ScanSearch },
+  { href: '/prohibitions', label: '禁止事項', icon: Ban },
 ];
 // サイドバーの一番下に置く
 const NAV_BOTTOM = [
@@ -31,12 +33,10 @@ const MOBILE = 860;
 type Badges = { homeBadge: React.ReactNode; activityBadge: React.ReactNode };
 
 export function Shell({
-  channelSlot,
   homeBadge,
   activityBadge,
   children,
 }: Badges & {
-  channelSlot: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(true);
@@ -56,7 +56,6 @@ export function Shell({
       </header>
 
       <nav className={`sidebar${open ? '' : ' closed'}`}>
-        {channelSlot}
         {/* usePathname は Cache Components では <Suspense> が必要。読み込み中は現在地の強調なしで出す */}
         <Suspense fallback={<NavLinks homeBadge={homeBadge} activityBadge={activityBadge} pathname={null} />}>
           <CurrentNavLinks homeBadge={homeBadge} activityBadge={activityBadge} onNavigate={closeOnMobile} />
@@ -80,7 +79,8 @@ function CurrentNavLinks({ onNavigate, ...badges }: Badges & { onNavigate: () =>
 }
 
 function NavLinks({ homeBadge, activityBadge, pathname }: Badges & { pathname: string | null }) {
-  const isActive = (href: string) => pathname !== null && (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  // /research と /research-methods のように前方が同じ別画面を取り違えないよう、区切り（/）まで見る
+  const isActive = (href: string) => pathname !== null && (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
   const link = ({ href, label, icon: Icon }: (typeof NAV)[number]) => (
     <Link key={href} href={href} className={`nav-link${isActive(href) ? ' active' : ''}`}>
       <Icon size={18} />
@@ -95,25 +95,6 @@ function NavLinks({ homeBadge, activityBadge, pathname }: Badges & { pathname: s
       <div className="section">{NAV_SUB.map(link)}</div>
       <div className="section bottom">{NAV_BOTTOM.map(link)}</div>
     </>
-  );
-}
-
-// アカウント切り替え。選ぶとすぐ cookie に保存して画面を更新する
-export function ChannelSwitcher({ channels, currentSlug }: { channels: { slug: string; name: string }[]; currentSlug: string | null }) {
-  return (
-    <form action={selectChannel}>
-      <select
-        name="slug"
-        className="channel-select"
-        aria-label="アカウント"
-        defaultValue={currentSlug ?? undefined}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      >
-        {channels.map((c) => (
-          <option key={c.slug} value={c.slug}>{c.name}</option>
-        ))}
-      </select>
-    </form>
   );
 }
 

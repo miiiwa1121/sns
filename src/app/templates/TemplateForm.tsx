@@ -28,7 +28,7 @@ export function TemplateForm({
       <div className="field">
         <label htmlFor="body">構成の指示</label>
         <textarea id="body" name="body" className="input" rows={12} maxLength={4000} defaultValue={values.body ?? ''} placeholder={'例:\n- 尺は 35〜45 秒（10〜12 行）。\n- 1行目は hook。2行目で何が変わったかを keyword で出す。\n- 中盤は compare で「これまで」と「これから」を並べる。\n- 最後の行は outro。'} />
-        <span className="muted">尺・行数・流れ・場面の選び方などを、箇条書きで AI に伝えます。使える場面の種類と、事実・出典・禁止事項のルールは指示書に固定で入るので、ここに書く必要はありません。</span>
+        <span className="muted">尺・行数・流れ・場面の選び方などを、箇条書きで AI に伝えます。使える場面の種類と、事実・出典のルールは指示書に固定で入り、禁止事項は依頼のときに選ぶので、ここに書く必要はありません。</span>
       </div>
       <div>
         <button className="btn primary" disabled={pending}>{pending ? '保存中…' : isNew ? '構成案を追加する' : '保存する'}</button>

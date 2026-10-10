@@ -108,10 +108,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; text-align: center;
   font-size: 12px; font-weight: 800; background: var(--accent); color: var(--on-accent);
 }
-.channel-select {
-  width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--border);
-  background: var(--surface-2); font-weight: 700; margin-bottom: 8px;
-}
 .overlay { display: none; }
 
 .main { flex: 1; min-width: 0; padding: 80px 32px 48px 280px; transition: padding 0.2s ease; }
@@ -293,7 +289,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .ws-src { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--sub); background: var(--surface); }
 .ws-src.template { color: var(--accent-strong); border-color: var(--accent); }
 .ws-src.account { color: var(--success); }
-.ws-src.topic, .ws-src.conversation { color: var(--text); }
+.ws-src.topic, .ws-src.conversation, .ws-src.research, .ws-src.prohibition { color: var(--text); }
 
 .ws-preview { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .ws-preview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
@@ -365,3 +361,16 @@ td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fo
 .row-test .notice { font-size: 12px; font-weight: 600; }
 .draft-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; }
 td .badge { white-space: nowrap; }
+
+/* 禁止事項の一覧（行ごとに直して保存） */
+.prohibition-row { display: flex; align-items: center; gap: 8px; }
+.prohibition-form { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+@media (max-width: 640px) { .prohibition-form { grid-template-columns: minmax(0, 1fr); } }
+.prohibition-form > .btn, .prohibition-form > .row { justify-self: start; }
+
+/* チャット欄の上の AI とモデルの選択 */
+.chat-ai { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; }
+.chat-ai .input { padding: 5px 8px; font-size: 13px; }
+
+/* AI 連携の「制作」の行（声・速さ・BGM） */
+.produce-field { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px; align-items: center; }

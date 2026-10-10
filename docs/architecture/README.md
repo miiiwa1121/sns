@@ -10,3 +10,4 @@
 - [directory-structure.md](directory-structure.md): リポジトリのディレクトリ構成と、生成物の保管場所（`data/`）・配信の仕組み
 - [video-template.md](video-template.md): ショート動画テンプレートの構成図（制作パイプライン・画面レイアウト・場面の種類・デザイン方針・声）
 - [autonomous-cron.md](autonomous-cron.md): 完全自律モード (Auto-Pilot) & 無人巡回スケジューラー設計詳細
+- [ai-manager.md](ai-manager.md): AI マネージャー（人と OmniPulse Studio のあいだに立つ窓口の AI）の設計。未実装

@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, ExternalLink } from 'lucide-react';
 export type VideoRow = {
   id: string;
   title: string;
+  accountName: string;
   createdAt: string; // ISO
   durationSec: number;
   status: string;
@@ -55,7 +56,7 @@ export function VideoFeed({ rows }: { rows: VideoRow[] }) {
             <span className={`badge ${r.statusClass}`} style={{ alignSelf: 'flex-start' }}>{r.status}</span>
             <Link href={`/projects/${r.id}`} className="title">{r.title}</Link>
             <span className="muted">
-              {new Date(r.createdAt).toLocaleDateString('ja-JP')} ・ {r.durationSec}秒
+              {r.accountName} ・ {new Date(r.createdAt).toLocaleDateString('ja-JP')} ・ {r.durationSec}秒
               {r.views !== null && ` ・ ${r.views.toLocaleString()} 回再生`}
               {r.retention !== null && ` ・ 視聴維持率 ${r.retention}%`}
             </span>
@@ -74,10 +75,11 @@ export function VideoFeed({ rows }: { rows: VideoRow[] }) {
 
 // ---------- 一覧表（見出しを押すと並べ替え） ----------
 
-type SortKey = 'title' | 'createdAt' | 'durationSec' | 'status' | 'templateName' | 'views' | 'likes' | 'comments' | 'retention';
+type SortKey = 'title' | 'accountName' | 'createdAt' | 'durationSec' | 'status' | 'templateName' | 'views' | 'likes' | 'comments' | 'retention';
 
 const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
   { key: 'title', label: 'タイトル' },
+  { key: 'accountName', label: 'アカウント' },
   { key: 'createdAt', label: '作成日' },
   { key: 'durationSec', label: '尺', numeric: true },
   { key: 'status', label: '状態' },
@@ -103,7 +105,7 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
     });
   }, [rows, sort]);
 
-  const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: key !== 'title' && key !== 'status' && key !== 'templateName' }));
+  const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: key !== 'title' && key !== 'accountName' && key !== 'status' && key !== 'templateName' }));
   const num = (v: number | null, suffix = '') => (v === null ? '' : `${v.toLocaleString()}${suffix}`);
 
   return (
@@ -136,6 +138,7 @@ export function VideoTable({ rows }: { rows: VideoRow[] }) {
                   </a>
                 )}
               </td>
+              <td>{r.accountName}</td>
               <td>{new Date(r.createdAt).toLocaleDateString('ja-JP')}</td>
               <td className="num">{r.durationSec}秒</td>
               <td><span className={`badge ${r.statusClass}`}>{r.status}</span></td>

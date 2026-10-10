@@ -46,7 +46,7 @@ export function storageUsage(): StorageUsage {
 
 export interface CleanupItem {
   kind: 'work' | 'video' | 'job';
-  label: string; // 企画名・依頼のテーマ
+  label: string; // 企画名・依頼のお題
   targets: string[]; // 消すファイル・フォルダ（絶対パス）
   bytes: number;
 }

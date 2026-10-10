@@ -57,6 +57,29 @@ export const WORKSHOP_SAMPLE_SCHEMA = obj({ title: str, note: str, lines });
 /** 動画編集の手直しの答え */
 export const EDIT_SCHEMA = obj({ reply: str, title: nullable(str), lines: nullable(lines) });
 
+/**
+ * 動画づくりの依頼の「台本」の工程の答え（agent/cli.ts の project:create に渡す形。trendId は受け取った後に足す）。
+ * 制作の設定に「おまかせ」があれば、その分を produce として選択肢の中から選ばせる
+ */
+export function projectSchema(auto: { voice?: string[]; speed?: string[]; bgm?: string[] }): Schema {
+  const choices = Object.fromEntries(Object.entries(auto).filter(([, v]) => v && v.length > 0).map(([k, v]) => [k, { type: 'string', enum: v }]));
+  if (Object.keys(choices).length === 0) return PROJECT_SCHEMA;
+  const base = PROJECT_SCHEMA as { properties: Record<string, Schema>; required: string[] };
+  return obj({ ...base.properties, produce: obj(choices) });
+}
+
+export const PROJECT_SCHEMA = obj({
+  title: str,
+  concept: str,
+  lines,
+  publish: obj({
+    youtube: obj({ title: str, description: str, tags: strArray }),
+    tiktok: obj({ caption: str, tags: strArray }),
+    instagram: obj({ caption: str, tags: strArray }),
+    x: obj({ text: str }),
+  }),
+});
+
 /** 接続テストの答え */
 export const PING_SCHEMA = obj({ reply: str });
 

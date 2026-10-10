@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { getCurrentChannel } from '@/lib/channel';
-import { buildJobPrompt } from '../../../../agent/job-prompt';
+import { firstChannel } from '@/lib/channel';
+import { previewJobPrompts } from '@/lib/jobPromptPreview';
 import { deleteTemplate, startTemplateWorkshop, updateTemplate } from '../../actions';
 import { ActionButton } from '../../projects/[id]/client';
 import { TemplateForm } from '../TemplateForm';
@@ -15,19 +15,10 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
     include: { accounts: { select: { name: true, slug: true } }, _count: { select: { projects: true, ownedWorkshops: true } } },
   });
   if (!template) notFound();
-  const channel = await getCurrentChannel();
+  const channel = await firstChannel();
 
-  // 実際に AI に渡す指示書の見本（選択中のアカウント・テーマおまかせ）。パスなどは見本の値
-  const preview = channel
-    ? buildJobPrompt({
-        jobId: '(依頼ID)',
-        repoDir: '(リポジトリ)',
-        workDir: '(作業フォルダ)',
-        theme: null,
-        channel,
-        template: { name: template.name, body: template.body },
-      })
-    : null;
+  // 実際に AI に渡す指示書の見本（一覧の先頭のアカウント・お題おまかせ）。パスなどは見本の値
+  const preview = channel ? (await previewJobPrompts(channel, { template })).script : null;
 
   return (
     <div className="page">
@@ -48,8 +39,8 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
 
       {preview && (
         <details className="card">
-          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>AI に渡す指示書の全体（見本: {channel?.name}・テーマおまかせ）</summary>
-          <p className="muted" style={{ marginTop: 8 }}>「構成案」の節に、上の構成の指示が入ります。それ以外（コマンド・手順・禁止事項）は固定です。保存前の内容は反映されません。</p>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>台本の工程で AI に渡す指示書（見本: {channel?.name}）</summary>
+          <p className="muted" style={{ marginTop: 8 }}>「構成案」の節に、上の構成の指示が入ります。リサーチの結果は依頼のたびにリサーチの工程で決まります。禁止事項は最初から選んだ状態のもので、書き方の決まりは固定です。保存前の内容は反映されません。</p>
           <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, marginTop: 8 }}>{preview}</pre>
         </details>
       )}

@@ -8,15 +8,20 @@ import { toGeminiSchema } from '@/lib/ai/schemas';
 
 /**
  * 連携している AI（管理画面の「AI 連携」）。
- *   claude-code   : Claude Code（CLI。claude.ai へのログインで動く）。依頼・相談・編集のすべてに使える
- *   antigravity   : Antigravity IDE（IDE のチャットに依頼を送る）。動画づくりの依頼だけ
- *   anthropic-api : Claude API（API キー・従量課金）。相談・編集に使える
- *   gemini-api    : Gemini API（API キー・従量課金）。相談・編集に使える
- * 依頼（リサーチ → 台本 → 制作を自分で進めるエージェント）は、今は Claude Code と Antigravity だけが対応している。
+ *   claude-code   : Claude Code（CLI。claude.ai へのログインで動く）。すべての用途に使える
+ *   antigravity   : Antigravity IDE（IDE のチャットに依頼を送る）。工程の終わりを受け取れないため、今はどの用途にも使わない（2026-10-11 から）
+ *   anthropic-api : Claude API（API キー・従量課金）。台本・相談・編集に使える
+ *   gemini-api    : Gemini API（API キー・従量課金）。台本・相談・編集に使える
+ * 動画づくりの依頼は工程ごとに AI を選ぶ。リサーチ（Web 検索）と点検（画像を見て直す）は、道具を使って作業を進められる Claude Code だけ。
  */
 
 export type AiProvider = 'claude-code' | 'antigravity' | 'anthropic-api' | 'gemini-api';
-export type AiPurpose = 'job' | 'workshop' | 'edit';
+export type AiPurpose = 'research' | 'script' | 'check' | 'workshop' | 'edit';
+// 動画づくりの依頼の工程（AI 連携で選ぶ）。制作（音声とレンダリング）はシステムが行うので AI は使わない
+export const JOB_PURPOSES = ['research', 'script', 'check'] as const;
+export type JobPurpose = (typeof JOB_PURPOSES)[number];
+// 構成案の相談・動画編集（それぞれの画面のチャット欄で選ぶ）
+export type ChatPurpose = 'workshop' | 'edit';
 
 export const PROVIDER_LABEL: Record<AiProvider, string> = {
   'claude-code': 'Claude Code',
@@ -26,28 +31,46 @@ export const PROVIDER_LABEL: Record<AiProvider, string> = {
 };
 
 export const PURPOSE_LABEL: Record<AiPurpose, string> = {
-  job: '動画づくりの依頼（既定）',
+  research: 'リサーチ',
+  script: '台本',
+  check: '点検',
   workshop: '構成案の相談・試作',
   edit: '動画編集の手直し',
 };
 
 // 用途ごとに選べる AI
 export const PURPOSE_PROVIDERS: Record<AiPurpose, AiProvider[]> = {
-  job: ['claude-code', 'antigravity'],
+  research: ['claude-code'],
+  script: ['claude-code', 'anthropic-api', 'gemini-api'],
+  check: ['claude-code'],
   workshop: ['claude-code', 'anthropic-api', 'gemini-api'],
   edit: ['claude-code', 'anthropic-api', 'gemini-api'],
 };
 
-// モデルを空にしたときに使うもの（Claude Code・Antigravity は各ツールの既定に任せる）
+// AppSetting の項目名の頭（<頭>Provider / <頭>Model）
+export const SETTING_KEY: Record<AiPurpose, string> = {
+  research: 'aiResearch',
+  script: 'aiScript',
+  check: 'aiCheck',
+  workshop: 'aiWorkshop',
+  edit: 'aiEdit',
+};
+
+// 最初に入れておくモデル（モデルは空にしない。Antigravity は IDE で選ぶので渡せない）
 export const DEFAULT_MODEL: Record<AiProvider, string> = {
-  'claude-code': '',
+  'claude-code': 'claude-opus-5-5',
   antigravity: '',
   'anthropic-api': 'claude-opus-5-5',
   'gemini-api': 'gemini-3.8-flash',
 };
 
-// Claude Code の --model に渡せる名前（別名。具体的なモデル ID も渡せる）
-export const CLAUDE_CODE_MODELS = ['opus', 'sonnet', 'haiku', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+// Claude Code で選べるモデル（2026-10-11 に1回ずつ呼んで確かめたもの）。
+// 別名（sonnet / haiku）は古いモデル（Sonnet 5・Haiku 4.5）になるので出さない。Fable 5.1 は claude.ai の利用枠がなく使えなかったので出さない
+export const CLAUDE_CODE_MODELS: { id: string; label: string }[] = [
+  { id: 'claude-opus-5-5', label: 'Opus 5.5（claude-opus-5-5）' },
+  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5（claude-sonnet-5-5）' },
+  { id: 'claude-haiku-5-5', label: 'Haiku 5.5（claude-haiku-5-5）' },
+];
 
 const API_KEY_ENV: Partial<Record<AiProvider, string>> = { 'anthropic-api': 'ANTHROPIC_API_KEY', 'gemini-api': 'GEMINI_API_KEY' };
 
@@ -63,22 +86,77 @@ export const DEFAULT_ANTIGRAVITY_BIN = process.env.ANTIGRAVITY_BIN || path.join(
 
 export async function loadAiSettings() {
   const s = (await prisma.appSetting.findUnique({ where: { id: 'app' } })) ?? (await prisma.appSetting.create({ data: { id: 'app' } }));
-  const pick = (purpose: AiPurpose, provider: string, model: string) => {
-    const p = (PURPOSE_PROVIDERS[purpose] as string[]).includes(provider) ? (provider as AiProvider) : PURPOSE_PROVIDERS[purpose][0];
-    return { provider: p, model };
+  // 選べない AI が入っていたら一覧の先頭に戻す。モデルが空（または AI を戻した）ならその AI の既定で埋める
+  const pick = (purpose: AiPurpose) => {
+    const key = SETTING_KEY[purpose];
+    const provider = s[`${key}Provider` as keyof typeof s] as string;
+    const model = s[`${key}Model` as keyof typeof s] as string;
+    const ok = (PURPOSE_PROVIDERS[purpose] as string[]).includes(provider);
+    const p = ok ? (provider as AiProvider) : PURPOSE_PROVIDERS[purpose][0];
+    return { provider: p, model: (ok && model) || DEFAULT_MODEL[p] };
   };
   // API 以外の AI は「AI 連携」で登録したものだけを使う（登録していなければ null）
   const local = await prisma.localAiEntry.findMany();
   return {
-    job: pick('job', s.aiJobProvider, s.aiJobModel),
-    workshop: pick('workshop', s.aiWorkshopProvider, s.aiWorkshopModel),
-    edit: pick('edit', s.aiEditProvider, s.aiEditModel),
+    research: pick('research'),
+    script: pick('script'),
+    check: pick('check'),
+    workshop: pick('workshop'),
+    edit: pick('edit'),
     claudeBin: local.find((l) => l.kind === 'claude-code')?.binPath ?? null,
     antigravityBin: local.find((l) => l.kind === 'antigravity')?.binPath ?? null,
   };
 }
 
 export type AiSettings = Awaited<ReturnType<typeof loadAiSettings>>;
+
+/** その AI を今使える状態か（API 以外は登録済み、API はキーがある）。使えなければ理由を返す */
+export function providerProblem(provider: AiProvider, s: AiSettings): string | null {
+  if (provider === 'claude-code') return s.claudeBin ? null : 'Claude Code が登録されていません（AI 連携の「API 以外」で追加してください）';
+  if (provider === 'antigravity') return s.antigravityBin ? null : 'Antigravity が登録されていません（AI 連携の「API 以外」で追加してください）';
+  const env = API_KEY_ENV[provider]!;
+  return process.env[env] ? null : `${PROVIDER_LABEL[provider]} の API キー（${env}）がありません（AI 連携の「API」で追加してください）`;
+}
+
+/**
+ * 用途で選べる AI とモデル（今使えるものだけ。登録していない AI・キーのない API は出さない）。
+ * 今の設定の AI が使えなくなっていたら provider は null（画面で選び直してもらう）
+ */
+export async function purposeChoices(purpose: AiPurpose, s: AiSettings) {
+  const usable = PURPOSE_PROVIDERS[purpose].filter((p) => providerProblem(p, s) === null);
+  const models = Object.fromEntries(await Promise.all(usable.map(async (p) => [p, await modelOptions(p)] as const))) as Record<string, ModelOption[]>;
+  // AI を選び直したときに入れるモデル（既定が一覧にあればそれ、なければ一覧の先頭）
+  const defaults = Object.fromEntries(usable.map((p) => [p, models[p].some((m) => m.id === DEFAULT_MODEL[p]) ? DEFAULT_MODEL[p] : models[p][0]?.id ?? ''])) as Record<string, string>;
+  const current = s[purpose];
+  const provider = usable.includes(current.provider) ? current.provider : null;
+  // 今のモデルが一覧になければ、その AI の既定を選んだ状態にする
+  const model = provider ? (models[provider].some((m) => m.id === current.model) ? current.model : defaults[provider]) : '';
+  return {
+    providers: usable.map((p) => ({ id: p, label: PROVIDER_LABEL[p] })),
+    models,
+    defaults,
+    provider,
+    model,
+    unavailable: provider ? null : PROVIDER_LABEL[current.provider],
+  };
+}
+
+export async function chatAiOptions(purpose: ChatPurpose, s: AiSettings) {
+  return purposeChoices(purpose, s);
+}
+
+const MODEL_NAME = /^[A-Za-z0-9._:/-]{1,100}$/;
+
+/** 用途に AI とモデルを割り当てるときの検査（今使える AI と、その AI の選択肢にあるモデルだけ） */
+export async function validateAssignment(purpose: AiPurpose, provider: string, model: string, s: AiSettings): Promise<string | null> {
+  if (!(PURPOSE_PROVIDERS[purpose] as string[]).includes(provider)) return `${PURPOSE_LABEL[purpose]}には使えない AI です`;
+  const problem = providerProblem(provider as AiProvider, s);
+  if (problem) return problem;
+  if (!model) return `${PURPOSE_LABEL[purpose]}のモデルを選んでください`;
+  if (!MODEL_NAME.test(model)) return 'モデル名に使えない文字が含まれています';
+  if (!(await modelOptions(provider as AiProvider)).some((m) => m.id === model)) return `${model} は ${PROVIDER_LABEL[provider as AiProvider]} で選べないモデルです`;
+  return null;
+}
 
 // ---------- API 以外の AI（「AI 連携」→ API 以外） ----------
 
@@ -208,8 +286,26 @@ export async function providerStatus(provider: AiProvider, settings: AiSettings)
 
 // ---------- モデル一覧 ----------
 
-export async function listModels(provider: AiProvider): Promise<{ id: string; label: string }[]> {
-  if (provider === 'claude-code') return CLAUDE_CODE_MODELS.map((m) => ({ id: m, label: m }));
+export type ModelOption = { id: string; label: string };
+
+// API のモデル一覧は、画面を開くたびに問い合わせないよう10分だけ覚えておく（チャットの画面は数秒ごとに読み直すため）
+const modelCache = new Map<AiProvider, { at: number; models: ModelOption[] }>();
+const MODEL_CACHE_MS = 10 * 60 * 1000;
+
+/** 選択肢に出すモデル（使えるものだけ）。API の一覧が取れなければ既定のモデルだけ */
+export async function modelOptions(provider: AiProvider): Promise<ModelOption[]> {
+  if (provider === 'claude-code') return CLAUDE_CODE_MODELS;
+  if (provider === 'antigravity') return [];
+  const cached = modelCache.get(provider);
+  if (cached && Date.now() - cached.at < MODEL_CACHE_MS) return cached.models;
+  const models = await listModels(provider).catch(() => []);
+  const out = models.length > 0 ? models : [{ id: DEFAULT_MODEL[provider], label: DEFAULT_MODEL[provider] }];
+  if (models.length > 0) modelCache.set(provider, { at: Date.now(), models: out });
+  return out;
+}
+
+export async function listModels(provider: AiProvider): Promise<ModelOption[]> {
+  if (provider === 'claude-code') return CLAUDE_CODE_MODELS;
   if (provider === 'antigravity') return [];
   if (provider === 'anthropic-api') {
     if (!process.env.ANTHROPIC_API_KEY) return [];

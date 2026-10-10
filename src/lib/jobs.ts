@@ -2,11 +2,34 @@ import fs from 'fs';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { jobDir } from '@/lib/storage';
+import { JOB_PURPOSES, PROVIDER_LABEL as AI_LABEL, type AiProvider, type JobPurpose } from '@/lib/ai/providers';
 
+// 依頼の provider。"steps" は工程ごとに AI を使う依頼（2026-10-11 から）。ほかは以前の依頼
 export const PROVIDER_LABEL: Record<string, string> = {
+  steps: '工程ごとの AI',
   'claude-code': 'Claude Code',
   antigravity: 'Antigravity（Gemini）',
 };
+
+// 依頼した時点の、工程ごとの AI とモデル
+export type AiSteps = Record<JobPurpose, { provider: AiProvider; model: string }>;
+
+export function parseAiSteps(json: string | null): AiSteps | null {
+  if (!json) return null;
+  try {
+    const v = JSON.parse(json) as AiSteps;
+    return JOB_PURPOSES.every((p) => v[p]?.provider && v[p]?.model) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 一覧に出す、依頼に使った AI（工程ごとの依頼は使った AI の名前を重ねずに並べる） */
+export function jobAiLabel(job: { provider: string; aiStepsJson: string | null }): string {
+  const steps = parseAiSteps(job.aiStepsJson);
+  if (!steps) return PROVIDER_LABEL[job.provider] ?? job.provider;
+  return [...new Set(JOB_PURPOSES.map((p) => AI_LABEL[steps[p].provider]))].join('・');
+}
 
 export const JOB_STATUS_LABEL: Record<string, string> = {
   running: '作業中',
@@ -28,8 +51,9 @@ async function syncAntigravity<T extends { id: string; provider: string; status:
   return jobs;
 }
 
-export async function loadJobs(accountId: string, take = 20) {
-  return syncAntigravity(await prisma.agentJob.findMany({ where: { accountId }, include, orderBy: { createdAt: 'desc' }, take }));
+/** 依頼の一覧（全アカウント。新しい順） */
+export async function loadJobs(take = 20) {
+  return syncAntigravity(await prisma.agentJob.findMany({ include, orderBy: { createdAt: 'desc' }, take }));
 }
 
 export async function loadRunningJobs() {
@@ -66,6 +90,12 @@ export function readJobLog(jobId: string): LogEntry[] {
       }
     }
     if (msg.type === 'result') entries.push({ kind: 'result', text: msg.result ?? '', error: Boolean(msg.is_error) });
+    // agent/job-runner.ts が書く行（Claude Code 以外の工程の記録）
+    if (msg.type === 'step') {
+      const step = msg as { kind?: string; text?: string; name?: string; detail?: string };
+      if (step.kind === 'text' && step.text) entries.push({ kind: 'text', text: step.text });
+      if (step.kind === 'tool') entries.push({ kind: 'tool', name: step.name ?? '', detail: step.detail ?? '' });
+    }
   }
   return entries;
 }
@@ -88,20 +118,14 @@ function describeTool(name: string | undefined, input: Record<string, unknown> =
   }
 }
 
-export const JOB_STEPS = ['リサーチ', '登録', '台本', '制作', '点検'] as const;
+// 依頼の工程（agent/job-runner.ts が AgentJob.phase に記録する）
+export const JOB_PHASES = ['research', 'script', 'produce', 'check'] as const;
+export type JobPhase = (typeof JOB_PHASES)[number];
+export const JOB_STEPS = ['リサーチ', '台本', '制作', '点検'] as const;
 
-// 作業の記録から、どの工程まで進んだかを推定する（-1: まだ何もしていない）
-export function jobProgress(entries: LogEntry[]): number {
-  let step = -1;
-  for (const e of entries) {
-    if (e.kind !== 'tool') continue;
-    if (e.name === 'WebSearch' || e.name === 'WebFetch') step = Math.max(step, 0);
-    if (e.detail.includes('trend:add')) step = Math.max(step, 1);
-    if (e.detail.includes('project:create') || e.detail.includes('project:update')) step = Math.max(step, 2);
-    if (e.detail.includes('produce')) step = Math.max(step, 3);
-    if (step >= 3 && e.name === 'Read' && e.detail.includes('preview.png')) step = Math.max(step, 4);
-  }
-  return step;
+/** 今どの工程か（-1: まだ始まっていない / 記録のない以前の依頼） */
+export function jobProgress(phase: string | null): number {
+  return JOB_PHASES.indexOf(phase as JobPhase);
 }
 
 export function elapsed(from: Date, to: Date = new Date()): string {

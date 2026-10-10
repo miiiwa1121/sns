@@ -6,6 +6,7 @@ import { safeJson } from '@/lib/json';
 import { YouTubePublisher } from '@/lib/publishers/youtubePublisher';
 import { youtubeClientReady } from '@/lib/youtubeAuth';
 import { listTemplates } from '@/lib/services/templateService';
+import { listResearchMethods } from '@/lib/services/researchMethodService';
 import { updateAccount } from '../../actions';
 import { AccountForm } from '../AccountForm';
 
@@ -23,7 +24,7 @@ export default async function AccountPage({
   if (!account) notFound();
   const yt = account.platformConnections.find((c) => c.platform === 'youtube');
   const channel = safeJson<{ channelId?: string; channelTitle?: string }>(yt?.apiConfig, {});
-  const templates = await listTemplates();
+  const [templates, researchMethods] = await Promise.all([listTemplates(), listResearchMethods()]);
   const tokenReady = YouTubePublisher.getAuthorizedClient(account.slug) !== null;
   const connected = Boolean(channel.channelId && tokenReady);
 
@@ -65,6 +66,7 @@ export default async function AccountPage({
           action={updateAccount.bind(null, account.id)}
           values={{ ...account, handles: Object.fromEntries(account.platformConnections.map((c) => [c.platform, c.handle])) }}
           templates={templates}
+          researchMethods={researchMethods}
         />
       </section>
     </div>

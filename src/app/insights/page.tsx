@@ -1,19 +1,16 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { getCurrentChannel } from '@/lib/channel';
 import { weightedRetention } from '@/lib/agents/performanceDiagnosis';
-import { NoChannel } from '../ui';
 
 export default async function InsightsPage() {
-  const channel = await getCurrentChannel();
-  if (!channel) return <div className="page"><h1>分析・知見</h1><NoChannel /></div>;
+  // 全アカウントの数字と知見（構成案は全アカウント共通なので、構成案ごとの成績もアカウントをまたいでまとめる）
   const [projects, knowledge] = await Promise.all([
     prisma.project.findMany({
-      where: { accountId: channel.id, analytics: { some: {} } },
-      include: { analytics: true, template: { select: { id: true, name: true } } },
+      where: { analytics: { some: {} } },
+      include: { analytics: true, account: { select: { name: true } }, template: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.agentKnowledge.findMany({ where: { accountId: channel.id }, orderBy: { createdAt: 'desc' } }),
+    prisma.agentKnowledge.findMany({ include: { account: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
   ]);
 
   const byTemplate = compareTemplates(projects);
@@ -61,7 +58,7 @@ export default async function InsightsPage() {
           ) : (
             <table>
               <thead>
-                <tr><th>動画</th><th>構成案</th><th>再生数</th><th>いいね</th><th>コメント</th><th>視聴維持率</th></tr>
+                <tr><th>動画</th><th>アカウント</th><th>構成案</th><th>再生数</th><th>いいね</th><th>コメント</th><th>視聴維持率</th></tr>
               </thead>
               <tbody>
                 {projects.map((p) => {
@@ -70,6 +67,7 @@ export default async function InsightsPage() {
                   return (
                     <tr key={p.id}>
                       <td><Link href={`/projects/${p.id}`} style={{ fontWeight: 700 }}>{p.title}</Link></td>
+                      <td className="muted">{p.account.name}</td>
                       <td className="muted">{p.template?.name ?? '-'}</td>
                       <td>{sum('views').toLocaleString()}</td>
                       <td>{sum('likes').toLocaleString()}</td>
@@ -94,7 +92,10 @@ export default async function InsightsPage() {
             knowledge.map((k) => (
               <div key={k.id}>
                 <div className="grow">{k.ruleText}</div>
-                <span className="muted">信頼度 {Math.round(k.confidenceScore * 100)}%</span>
+                <div className="side">
+                  <span className="muted">{k.account.name}</span>
+                  <span className="muted">信頼度 {Math.round(k.confidenceScore * 100)}%</span>
+                </div>
               </div>
             ))
           )}
