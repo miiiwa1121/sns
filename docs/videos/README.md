@@ -12,3 +12,4 @@
 - [20261010-cmv2341zx0001qciume14xjw5.md](20261010-cmv2341zx0001qciume14xjw5.md): AIの「本気度」が選べる時代に。Claude Haiku 5.5登場
 - [20261010-cmv251z5g0001qcm05m1sj1tz.md](20261010-cmv251z5g0001qcm05m1sj1tz.md): Geminiに新機能「Skills」。指示を保存して「/」で呼び出せる
 - [20261011-cmv2qice30001qc4hzd5fao3v.md](20261011-cmv2qice30001qc4hzd5fao3v.md): Gemini無料版、10/9から選べるのはFlash-Liteだけ
+- [20261011-cmv2udhf00001qcw2vix764ut.md](20261011-cmv2udhf00001qcw2vix764ut.md): AIへの暴言禁止？普段のイライラはセーフです

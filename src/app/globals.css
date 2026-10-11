@@ -177,8 +177,9 @@ h2 { font-size: 17px; font-weight: 800; margin-bottom: 12px; }
 .step-labels span.now { color: var(--accent-strong); font-weight: 800; }
 
 /* フォーム */
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 13px; color: var(--sub); font-weight: 600; }
+/* 項目名は本文の色・大きめの太字にして、下の補足（.muted）と区別する。入れ子の選択肢（.field の中の label）は対象外 */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label { font-size: 16px; color: var(--text); font-weight: 700; margin-top: 4px; }
 .input, textarea.input {
   width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
 }
@@ -374,3 +375,7 @@ td .badge { white-space: nowrap; }
 
 /* AI 連携の「制作」の行（声・速さ・BGM） */
 .produce-field { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px; align-items: center; }
+
+/* 作成する: 工程ごとの AI とモデル */
+.step-ai { display: grid; grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; align-items: center; }
+@media (max-width: 640px) { .step-ai { grid-template-columns: minmax(0, 1fr); } }

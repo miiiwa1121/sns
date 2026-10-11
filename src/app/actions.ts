@@ -31,7 +31,6 @@ import {
   SETTING_KEY,
   checkAntigravity,
   loadAiSettings,
-  providerProblem,
   validateAssignment,
   type ChatPurpose,
   providerForEnv,
@@ -147,9 +146,19 @@ export async function deleteDraftProject(projectId: string) {
 // ---------- 動画づくりの依頼（AgentJob） ----------
 
 export async function createVideoJob(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  // 工程ごとの AI は「AI 連携」の割り当てで決める（依頼の画面では選ばない）。依頼した時点の割り当てを写して残す
+  // 工程ごとの AI とモデルは「作成する」で選ぶ。依頼した時点の選択を写して残し、次の依頼の初期値にもする
   const ai = await loadAiSettings();
-  const steps = Object.fromEntries(JOB_PURPOSES.map((p) => [p, ai[p]])) as AiSteps;
+  const steps = {} as AiSteps;
+  const saved: Record<string, string> = {};
+  for (const p of JOB_PURPOSES) {
+    const provider = String(formData.get(`${p}Provider`) ?? '');
+    const model = String(formData.get(`${p}Model`) ?? '').trim();
+    const error = await validateAssignment(p, provider, model, ai);
+    if (error) return fail(error);
+    steps[p] = { provider: provider as AiSteps[typeof p]['provider'], model };
+    saved[`${SETTING_KEY[p]}Provider`] = provider;
+    saved[`${SETTING_KEY[p]}Model`] = model;
+  }
   // 制作の声・速さ・BGM（"auto" は「おまかせ」= 台本の担当 AI が選ぶ）
   const pick = (k: string) => {
     const v = String(formData.get(k) ?? 'auto');
@@ -159,8 +168,6 @@ export async function createVideoJob(_prev: ActionState, formData: FormData): Pr
   const produce = { voice: pick('produceVoice'), speed: speed === null ? null : Number(speed), bgm: pick('produceBgm') };
   const produceError = validateProduceRequest(produce);
   if (produceError) return fail(produceError);
-  const problem = JOB_PURPOSES.map((p) => providerProblem(steps[p].provider, ai)).find(Boolean);
-  if (problem) return fail(problem);
   const theme = String(formData.get('theme') ?? '').trim().slice(0, 300) || null;
   const channel = await prisma.account.findFirst({ where: { id: String(formData.get('accountId') ?? ''), isActive: true } });
   if (!channel) return fail('アカウントを選んでください');
@@ -175,6 +182,7 @@ export async function createVideoJob(_prev: ActionState, formData: FormData): Pr
   const prohibitions = (await listProhibitions()).filter((p) => selected.has(p.id)).map((p) => p.text);
 
   // 構成案・リサーチ手法・禁止事項は本文の写しも残す（あとで編集・削除しても、何で作ったか分かるように）
+  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...saved }, update: saved });
   const job = await prisma.agentJob.create({
     data: {
       accountId: channel.id,
@@ -488,22 +496,6 @@ export async function sendEditChat(projectId: string, _prev: ActionState, formDa
 }
 
 // ---------- AI 連携 ----------
-
-/** AI 連携の「動画づくりの依頼」（工程ごとの AI とモデル。モデルは必須） */
-export async function saveAiAssignments(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const data: Record<string, string> = {};
-  const ai = await loadAiSettings();
-  for (const purpose of JOB_PURPOSES) {
-    const provider = String(formData.get(`${purpose}Provider`) ?? '');
-    const model = String(formData.get(`${purpose}Model`) ?? '').trim();
-    const error = await validateAssignment(purpose, provider, model, ai);
-    if (error) return fail(error);
-    data[`${SETTING_KEY[purpose]}Provider`] = provider;
-    data[`${SETTING_KEY[purpose]}Model`] = model;
-  }
-  await prisma.appSetting.upsert({ where: { id: 'app' }, create: { id: 'app', ...data }, update: data });
-  return done('保存しました');
-}
 
 /** 制作の声の選択肢に、VOICEVOX の声の一覧を読み込む（エンジンを起動していなければ一時的に起動する。1分ほどかかる） */
 export async function loadVoicevoxVoices(): Promise<ActionState> {

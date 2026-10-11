@@ -6,7 +6,14 @@ import { JobForm } from './client';
 import { listTemplates } from '@/lib/services/templateService';
 import { SPEED_OPTIONS, bgmOptions, voiceOptions, voicevoxListed } from '@/lib/services/produceSettings';
 import { listProhibitions, listResearchMethods } from '@/lib/services/researchMethodService';
-import { JOB_PURPOSES, PROVIDER_LABEL as AI_LABEL, PURPOSE_LABEL, loadAiSettings, providerProblem } from '@/lib/ai/providers';
+import { JOB_PURPOSES, PURPOSE_LABEL, loadAiSettings, purposeChoices } from '@/lib/ai/providers';
+
+// 動画づくりの依頼の工程（制作は AI を使わず、システムが行う）
+const STEP_NOTE = {
+  research: 'Web で調べて話題を決め、登録する（Web 検索を使うため Claude Code のみ）',
+  script: 'リサーチの結果から台本と投稿文を書く',
+  check: '確認用の静止画を見て直し、報告する（画像を見て直すため Claude Code のみ）',
+} as const;
 
 export default async function NewVideoPage() {
   const accounts = await listChannels();
@@ -36,9 +43,8 @@ export default async function NewVideoPage() {
         templates={templates.map(option)}
         researchMethods={researchMethods.map(option)}
         prohibitions={prohibitions.map(({ id, text, isDefault }) => ({ id, text, isDefault }))}
-        workers={JOB_PURPOSES.map((p) => ({ step: PURPOSE_LABEL[p], ai: AI_LABEL[ai[p].provider], model: ai[p].model }))}
+        steps={await Promise.all(JOB_PURPOSES.map(async (p) => ({ purpose: p, label: PURPOSE_LABEL[p], note: STEP_NOTE[p], ...(await purposeChoices(p, ai)) })))}
         produce={{ voices: voiceOptions(), speeds: SPEED_OPTIONS, bgms: bgmOptions(), voicevoxListed: voicevoxListed() }}
-        aiProblem={JOB_PURPOSES.map((p) => providerProblem(ai[p].provider, ai)).find(Boolean) ?? null}
       />
 
       {jobs.length > 0 && (

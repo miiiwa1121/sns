@@ -8,6 +8,16 @@ import { createVideoJob, loadVoicevoxVoices, type ActionState } from '../actions
 type Option = { id: string; name: string };
 type LabeledOption = { id: string; label: string };
 type AccountOption = { id: string; name: string; defaultTemplateId: string; defaultResearchMethodId: string };
+type StepChoice = {
+  purpose: string;
+  label: string;
+  note: string;
+  providers: LabeledOption[]; // 今使える AI だけ
+  models: Record<string, LabeledOption[]>;
+  defaults: Record<string, string>; // AI を選び直したときに入れるモデル
+  provider: string | null; // 前回選んだ AI（使えなくなっていたら null）
+  model: string;
+};
 type ProhibitionOption = { id: string; text: string; isDefault: boolean };
 
 export function JobForm({
@@ -17,8 +27,7 @@ export function JobForm({
   templates,
   researchMethods,
   prohibitions,
-  workers,
-  aiProblem,
+  steps,
   produce,
 }: {
   disabled: boolean;
@@ -27,8 +36,7 @@ export function JobForm({
   templates: Option[];
   researchMethods: Option[];
   prohibitions: ProhibitionOption[];
-  workers: { step: string; ai: string; model: string }[]; // 工程ごとの AI（「AI 連携」の割り当て。ここでは選ばない）
-  aiProblem: string | null; // 割り当てた AI が使えない理由
+  steps: StepChoice[]; // 工程ごとの AI とモデルの選択肢（今使えるものだけ）。初期値は前回選んだもの
   produce: { voices: LabeledOption[]; speeds: number[]; bgms: LabeledOption[]; voicevoxListed: boolean }; // 制作で選べるもの
 }) {
   const [state, run, pending] = useActionState(createVideoJob, null);
@@ -74,14 +82,9 @@ export function JobForm({
         )}
       </div>
       <ProduceFields {...produce} />
-      <p className="muted">
-        工程: {workers.map((w, i) => (
-          <span key={w.step}>{i > 0 && ' ・ '}{w.step} <strong>{w.ai}</strong>（{w.model}）</span>
-        ))}（<Link href="/ai">「AI 連携」</Link>で変更）
-      </p>
-      {aiProblem && <p className="notice ng">{aiProblem}</p>}
+      <StepAiFields steps={steps} />
       <div>
-        <button className="btn primary" disabled={pending || disabled || aiProblem !== null}>{pending ? '依頼中…' : '依頼する'}</button>
+        <button className="btn primary" disabled={pending || disabled || steps.some((s) => s.providers.length === 0)}>{pending ? '依頼中…' : '依頼する'}</button>
       </div>
       {disabled && <p className="muted">作業中の依頼が終わると、次を依頼できます。</p>}
       {state && !state.ok && <p className="notice ng">{state.message}</p>}
@@ -142,6 +145,42 @@ function ProduceFields({ voices, speeds, bgms, voicevoxListed }: { voices: Label
         </button>
         {state && <span className={`notice ${state.ok ? 'ok' : 'ng'}`}>{state.message}</span>}
       </div>
+    </div>
+  );
+}
+
+// 工程ごとの AI とモデル（リサーチ → 台本 → 点検。制作は AI を使わないので下の「制作」で選ぶ）。選べるのは今使える AI と、その AI のモデルだけ
+function StepAiFields({ steps }: { steps: StepChoice[] }) {
+  const [picked, setPicked] = useState(() => Object.fromEntries(steps.map((s) => [s.purpose, { provider: s.provider ?? s.providers[0]?.id ?? '', model: s.provider ? s.model : s.defaults[s.providers[0]?.id ?? ''] ?? '' }])));
+  return (
+    <div className="field">
+      <label>工程ごとの AI</label>
+      <div className="stack" style={{ gap: 10 }}>
+        {steps.map((s) => {
+          const { provider, model } = picked[s.purpose];
+          return (
+            <div key={s.purpose} className="stack" style={{ gap: 4 }}>
+              <div className="step-ai">
+                <strong>{s.label}</strong>
+                {s.providers.length === 0 ? (
+                  <span className="notice ng">使える AI がありません（<Link href="/ai">「AI 連携」</Link>で追加してください）</span>
+                ) : (
+                  <>
+                    <select name={`${s.purpose}Provider`} className="input" aria-label={`${s.label}の AI`} value={provider} onChange={(e) => setPicked({ ...picked, [s.purpose]: { provider: e.target.value, model: s.defaults[e.target.value] ?? '' } })}>
+                      {s.providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                    </select>
+                    <select name={`${s.purpose}Model`} className="input" aria-label={`${s.label}のモデル`} value={model} onChange={(e) => setPicked({ ...picked, [s.purpose]: { provider, model: e.target.value } })}>
+                      {(s.models[provider] ?? []).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select>
+                  </>
+                )}
+              </div>
+              <span className="muted">{s.note}</span>
+            </div>
+          );
+        })}
+      </div>
+      <span className="muted">前回選んだ AI が初めから入っています。使える AI は<Link href="/ai">「AI 連携」</Link>で追加します。</span>
     </div>
   );
 }
